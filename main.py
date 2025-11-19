@@ -337,7 +337,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item.setForeground(QColor("#e74c3c"))
             self.schedule_widget.addItem(error_item)
             
-
+"""проверка гитхаба"""
 
 def main():
     
