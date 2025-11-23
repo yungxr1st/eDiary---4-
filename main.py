@@ -523,8 +523,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item.setForeground(QColor("#e74c3c"))
             self.schedule_list.addItem(error_item)
 
-    def load_attendance(self):
-        """Загрузка данных о посещаемости"""
+    def load_attendance(self): # загрузка посещаемости
         try:
             cursor = conn.cursor()
 
