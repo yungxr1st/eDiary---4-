@@ -2,6 +2,7 @@ import hashlib
 import sys
 import pyodbc
 import pandas as pd
+import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, QLineEdit, QTabWidget,
                              QGroupBox, QListWidget, QDialogButtonBox, QDialog, QFormLayout, QMessageBox,
@@ -209,12 +210,141 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         main_layout.addWidget(label)
 
-        # расписание
-        schedule_layout_h = QHBoxLayout()
-        schedule_layout_h.addStretch(2)
-        schedule_layout_v = QVBoxLayout()
-        schedule_layout_h.addLayout(schedule_layout_v)
-        main_layout.addLayout(schedule_layout_h)
+        # расположение элементов
+        main_layout_h = QHBoxLayout() # основная группа
+        group_button_layout = QVBoxLayout() # группа для кнопок
+        self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
+        main_layout_h.addLayout(group_button_layout)
+        main_layout_h.addStretch(1)
+        main_layout_h.addLayout(self.content_layout_v)
+        main_layout.addLayout(main_layout_h)
+
+        group_button_layout.addStretch(1)
+
+        # кнопка посещаемости
+        self.button_attendance = QPushButton("Посещаемость")
+        self.button_attendance.setFixedSize(250, 40)
+        self.button_attendance.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_attendance.clicked.connect(self.show_attendance)
+        group_button_layout.addWidget(self.button_attendance, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка задания
+        self.button_homework = QPushButton("Задания")
+        self.button_homework.setFixedSize(250, 40)
+        self.button_homework.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        group_button_layout.addWidget(self.button_homework, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка тесты
+        self.button_tests = QPushButton("Тесты")
+        self.button_tests.setFixedSize(250, 40)
+        self.button_tests.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка успеваемость
+        self.button_stats = QPushButton("Успеваемость")
+        self.button_stats.setFixedSize(250, 40)
+        self.button_stats.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка расписания
+        self.button_schedule = QPushButton("Расписание")
+        self.button_schedule.setFixedSize(250, 40)
+        self.button_schedule.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_schedule.clicked.connect(self.show_schedule)
+        group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
+
+        group_button_layout.addStretch(2)
+
+        self.schedule()
+        self.attendance()
+
+        self.show_schedule()
+
+        main_layout.addStretch(1)
+
+    def schedule(self): # расписание
+        self.schedule_widget = QWidget()
+        schedule_layout = QVBoxLayout()
+        self.schedule_widget.setLayout(schedule_layout)
 
         schedule_label = QLabel("Занятия на текущей неделе:")
         schedule_label.setAlignment(Qt.AlignLeft)
@@ -226,12 +356,12 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             margin-top: 20px;
             margin-bottom: 10px;
         """)
-        schedule_layout_v.addWidget(schedule_label)
-        # schedule_layout_v.addStretch(1)
+        schedule_layout.addWidget(schedule_label)
+        # content_layout_v.addStretch(1)
 
         # окно для занятий
-        self.schedule_widget = QListWidget()
-        self.schedule_widget.setStyleSheet("""
+        self.schedule_list = QListWidget()
+        self.schedule_list.setStyleSheet("""
             QListWidget {
                 background-color: white;
                 border: 1px solid #ccc;
@@ -247,16 +377,72 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border-bottom: none;
             }
         """)
-        self.schedule_widget.setFixedSize(400, 400)
-        schedule_layout_v.addWidget(self.schedule_widget)
+        self.schedule_list.setFixedSize(400, 400)
+        schedule_layout.addWidget(self.schedule_list)
 
         self.load_schedule()
 
-        main_layout.addStretch(1)
-
         # print(user_id)
 
-    def load_schedule(self): # расписание
+    def attendance(self): # посещаемость
+        self.attendance_widget = QWidget()
+        attendance_layout = QVBoxLayout()
+        self.attendance_widget.setLayout(attendance_layout)
+
+        attendance_label = QLabel("Посещаемость занятий:")
+        attendance_label.setAlignment(Qt.AlignLeft)
+        attendance_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        attendance_layout.addWidget(attendance_label)
+
+        # окно для посещаемости
+        self.attendance_table = QListWidget()
+        self.attendance_table.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        self.attendance_table.setFixedSize(400, 400)
+        attendance_layout.addWidget(self.attendance_table)
+
+    def show_schedule(self): # отображение расписания
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.schedule_widget)
+
+        self.load_schedule()
+
+    def show_attendance(self): # отображение посещаемости
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.attendance_widget)
+
+        self.load_attendance()
+
+    def clear_content_layout(self): # очистка content_layout_v
+        for i in reversed(range(self.content_layout_v.count())):
+            widget = self.content_layout_v.itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
+
+    def load_schedule(self): # загрузка расписания
         try:
             cursor = conn.cursor()
 
@@ -290,10 +476,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     s.lesson_num
             """)
 
-            cursor.execute(query, (self.id_user,))
+            cursor.execute(query, (self.id_user))
             schedule_data = cursor.fetchall()
 
-            self.schedule_widget.clear()
+            self.schedule_list.clear()
 
             if schedule_data:
                 current_day = None
@@ -316,18 +502,18 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                         day_header.setFlags(Qt.NoItemFlags)
                         day_header.setFont(QFont("Roboto", 10, QFont.Bold))
                         day_header.setForeground(QColor("#2c3e50"))
-                        self.schedule_widget.addItem(day_header)
+                        self.schedule_list.addItem(day_header)
                     
                     lesson_item = QListWidgetItem(f"  {lesson_text}")
                     lesson_item.setFlags(Qt.NoItemFlags)
-                    self.schedule_widget.addItem(lesson_item)
+                    self.schedule_list.addItem(lesson_item)
 
             else:
                 no_schedule_item = QListWidgetItem("Расписание на текущую неделю отсутствует")
                 no_schedule_item.setTextAlignment(Qt.AlignCenter)
                 no_schedule_item.setFlags(Qt.NoItemFlags)
                 no_schedule_item.setForeground(QColor("#7f8c8d"))
-                self.schedule_widget.addItem(no_schedule_item)
+                self.schedule_list.addItem(no_schedule_item)
                 
             cursor.close()
 
@@ -335,9 +521,104 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item = QListWidgetItem(f"Ошибка при загрузке расписания: {str(e)}")
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
-            self.schedule_widget.addItem(error_item)
+            self.schedule_list.addItem(error_item)
+
+    def load_attendance(self):
+        """Загрузка данных о посещаемости"""
+        try:
+            cursor = conn.cursor()
+
+            query = ("""
+                SELECT 
+                    l.date,
+                    sub.subject_name,
+                    t_att.title as attendance_status,
+                    u.surname + ' ' + LEFT(u.name, 1) + '.' + LEFT(u.patronymic, 1) + '.' as teacher_name
+                from lesson l
+                inner join subject sub on sub.id_subject = l.id_subject
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_att ON t_att.id_type_att = a.id_type_att
+                inner join subj_teachers s_t on s_t.id_subject = sub.id_subject
+                inner join users u on u.id_user = s_t.id_user
+                WHERE a.id_user = ?
+                ORDER BY l.date DESC
+            """)
+
+            cursor.execute(query, (self.id_user))
+            attendance_data = cursor.fetchall()
+
+            self.attendance_table.clear()
+
+            if attendance_data:
+                current_date = None
+                
+                for record in attendance_data:
+                    date = record[0]
+                    subject_name = record[1]
+                    attendance_status = record[2]
+                    teacher_name = record[3]
+
+                    day_of_week = date.strftime("%A")
+                    day_list = {
+                        'Monday': 'Понедельник',
+                        'Tuesday': 'Вторник', 
+                        'Wednesday': 'Среда',
+                        'Thursday': 'Четверг',
+                        'Friday': 'Пятница',
+                        'Saturday': 'Суббота',
+                        'Sunday': 'Воскресенье'
+                    }
+                    day = day_list.get(day_of_week, day_of_week)
+
+                    formatted_date = date.strftime("%d.%m.%Y")
+                    
+                    # цвет для статуса посещаемости
+                    if "присутствовал" in attendance_status.lower():
+                        status_color = "#27ae60"  # присутствовал
+                    elif "отсутствовал" in attendance_status.lower():
+                        status_color = "#e74c3c"  # отсутствовал без причин
+                    elif "болезнь" or "уважительная причина" or "пропуск по семейным обстоятельствам" in attendance_status.lower():
+                        status_color = "#f39c12"  # отсутствовал по причинам
+                    
+                    attendance_text = f"{formatted_date} ({day}) - {subject_name}"
+                    status_text = f"Статус: {attendance_status}"
+                    
+                    date_item = QListWidgetItem(f" {attendance_text}")
+                    date_item.setFlags(Qt.NoItemFlags)
+                    date_item.setFont(QFont("Roboto", 9, QFont.Bold))
+                    date_item.setForeground(QColor("#2c3e50"))
+                    self.attendance_table.addItem(date_item)
+                    
+                    status_item = QListWidgetItem(f"   {teacher_name}")
+                    status_item.setFlags(Qt.NoItemFlags)
+                    status_item.setFont(QFont("Roboto", 8))
+                    self.attendance_table.addItem(status_item)
+                    
+                    status_item = QListWidgetItem(f"   {status_text}")
+                    status_item.setFlags(Qt.NoItemFlags)
+                    status_item.setFont(QFont("Roboto", 8))
+                    status_item.setForeground(QColor(status_color))
+                    self.attendance_table.addItem(status_item)
+                    
+                    separator_item = QListWidgetItem("")
+                    separator_item.setFlags(Qt.NoItemFlags)
+                    self.attendance_table.addItem(separator_item)
+
+            else:
+                no_attendance_item = QListWidgetItem("Данные о посещаемости отсутствуют")
+                no_attendance_item.setTextAlignment(Qt.AlignCenter)
+                no_attendance_item.setFlags(Qt.NoItemFlags)
+                no_attendance_item.setForeground(QColor("#7f8c8d"))
+                self.attendance_table.addItem(no_attendance_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке посещаемости: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.attendance_table.addItem(error_item)
             
-"""проверка гитхаба"""
 
 def main():
     
