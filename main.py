@@ -21,7 +21,7 @@ conn = pyodbc.connect(
     ';DATABASE=' + database + ';UID=' + uname + ';PWD=' + pswd)
 
 
-class MainWindow(QMainWindow):
+class LoginWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
@@ -163,6 +163,8 @@ class MainWindow(QMainWindow):
                 
                 if id_role == 1: # ученик
                     self.open_main_menu_for_student(id_user, fio)
+                if id_role == 2: # преподаватель
+                    self.open_main_menu_for_teacher(id_user, fio)
                     
             if login == "123" and pswd == "123":
                 id_user = 1
@@ -184,6 +186,12 @@ class MainWindow(QMainWindow):
         self.main_menu_student = MainMenuStudent(id_user, fio)
         self.main_menu_student.show()
 
+    def open_main_menu_for_teacher(self, id_user, fio): #
+        self.close()
+
+        self.main_menu_teacher = MainMenuTeacher(id_user, fio)
+        self.main_menu_teacher.show()
+
 
 class MainMenuStudent(QMainWindow): # главное меню для ученика
     def __init__(self, id_user = None, fio = None):
@@ -201,14 +209,40 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
 
+        main_layout_top = QHBoxLayout()
+        main_layout.addLayout(main_layout_top)
+
+        # верхняя часть
         label = QLabel(f"Добро пожаловать, {fio}")
         label.setAlignment(Qt.AlignLeft)
         label.setStyleSheet("""
             font-size: 20px;
             font-family: Roboto;
             color: #333;
+            padding-top: 5px;
         """)
-        main_layout.addWidget(label)
+        main_layout_top.addWidget(label)
+
+        # кнопка выйти
+        self.button_exit = QPushButton("Выйти")
+        self.button_exit.setFixedSize(120, 35)
+        self.button_exit.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addWidget(self.button_exit)
 
         # расположение элементов
         main_layout_h = QHBoxLayout() # основная группа
@@ -287,6 +321,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 background-color: #21618c;
             }
         """)
+        self.button_tests.clicked.connect(self.show_tests)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -341,10 +376,16 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.attendance()
         self.homework()
         self.grades()
+        self.tests()
 
         self.show_schedule()
 
         main_layout.addStretch(1)
+
+    def logout(self): # выход из учетки
+        self.login_window = LoginWindow()
+        self.login_window.show()
+        self.close()
 
     def schedule(self): # расписание
         self.schedule_widget = QWidget()
@@ -503,6 +544,44 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.grades_table.setFixedSize(400, 400)
         grades_layout.addWidget(self.grades_table)
 
+    def tests(self): # тесты
+        self.tests_widget = QWidget()
+        tests_layout = QVBoxLayout()
+        self.tests_widget.setLayout(tests_layout)
+
+        tests_label = QLabel("Тесты:")
+        tests_label.setAlignment(Qt.AlignLeft)
+        tests_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        tests_layout.addWidget(tests_label)
+
+        # окно для тестов
+        self.tests_table = QListWidget()
+        self.tests_table.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        self.tests_table.setFixedSize(400, 400)
+        tests_layout.addWidget(self.tests_table)
+
     def show_schedule(self): # отображение расписания
         self.clear_content_layout()
 
@@ -530,6 +609,13 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.content_layout_v.addWidget(self.grades_widget)
 
         self.load_grades()
+
+    def show_tests(self): # отображение тестов
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.tests_widget)
+
+        self.load_tests()
 
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
         for i in reversed(range(self.content_layout_v.count())):
@@ -672,6 +758,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                         status_color = "#f39c12"  # отсутствовал по причинам
                     
                     attendance_text = f"{formatted_date} ({day}) - {subject_name}"
+                    teacher_text = f"Преподаватель: {teacher_name}"
                     status_text = f"Статус: {attendance_status}"
                     
                     date_item = QListWidgetItem(f" {attendance_text}")
@@ -680,10 +767,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     date_item.setForeground(QColor("#2c3e50"))
                     self.attendance_table.addItem(date_item)
                     
-                    status_item = QListWidgetItem(f"   {teacher_name}")
-                    status_item.setFlags(Qt.NoItemFlags)
-                    status_item.setFont(QFont("Roboto", 8))
-                    self.attendance_table.addItem(status_item)
+                    teacher_item = QListWidgetItem(f"   {teacher_text}")
+                    teacher_item.setFlags(Qt.NoItemFlags)
+                    teacher_item.setFont(QFont("Roboto", 8))
+                    self.attendance_table.addItem(teacher_item)
                     
                     status_item = QListWidgetItem(f"   {status_text}")
                     status_item.setFlags(Qt.NoItemFlags)
@@ -847,7 +934,103 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
             self.grades_table.addItem(error_item)
-            
+
+    def load_tests(self): # загрузка тестов
+        pass
+
+
+class MainMenuTeacher(QMainWindow):
+    def __init__(self, id_user = None, fio = None):
+        super().__init__()
+        self.id_user = id_user
+        self.fio = fio
+
+        central_widget = QWidget()
+
+        self.setWindowTitle("Главное меню")
+        self.setFixedSize(900, 600)
+        self.setCentralWidget(central_widget)
+        self.setStyleSheet("background-color: #f0f0f0;")
+
+        main_layout = QVBoxLayout()
+        central_widget.setLayout(main_layout)
+
+        main_layout_top = QHBoxLayout()
+        main_layout.addLayout(main_layout_top)
+
+        # верхняя часть
+        label = QLabel(f"Добро пожаловать, {fio}")
+        label.setAlignment(Qt.AlignLeft)
+        label.setStyleSheet("""
+            font-size: 20px;
+            font-family: Roboto;
+            color: #333;
+            padding-top: 5px;
+        """)
+        main_layout_top.addWidget(label)
+
+        # кнопка выйти
+        self.button_exit = QPushButton("Выйти")
+        self.button_exit.setFixedSize(120, 35)
+        self.button_exit.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addWidget(self.button_exit)
+
+        # основная группа
+        main_layout_h = QHBoxLayout()
+
+        group_button_layout = QVBoxLayout() # группа для кнопок
+        self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
+        main_layout_h.addLayout(group_button_layout)
+        main_layout_h.addStretch(3)
+        main_layout_h.addLayout(self.content_layout_v)
+        main_layout_h.addStretch(1)
+        main_layout.addLayout(main_layout_h)
+
+        group_button_layout.addStretch(1)
+
+        # кнопка тесты
+        self.button_tests = QPushButton("Тесты")
+        self.button_tests.setFixedSize(200, 40)
+        self.button_tests.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
+
+        group_button_layout.addStretch(1)
+
+    def logout(self): # выход из учетки
+        self.login_window = LoginWindow()
+        self.login_window.show()
+        self.close()
+
 
 def main():
     
@@ -889,7 +1072,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    login_window = MainWindow()
+    login_window = LoginWindow()
     login_window.show()
 
     sys.exit(app.exec_())
