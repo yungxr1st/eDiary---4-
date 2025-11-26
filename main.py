@@ -215,8 +215,9 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         group_button_layout = QVBoxLayout() # группа для кнопок
         self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
         main_layout_h.addLayout(group_button_layout)
-        main_layout_h.addStretch(1)
+        main_layout_h.addStretch(3)
         main_layout_h.addLayout(self.content_layout_v)
+        main_layout_h.addStretch(1)
         main_layout.addLayout(main_layout_h)
 
         group_button_layout.addStretch(1)
@@ -263,6 +264,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 background-color: #21618c;
             }
         """)
+        self.button_homework.clicked.connect(self.show_homework)
         group_button_layout.addWidget(self.button_homework, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -307,6 +309,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 background-color: #21618c;
             }
         """)
+        self.button_stats.clicked.connect(self.show_grades)
         group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -336,6 +339,8 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         self.schedule()
         self.attendance()
+        self.homework()
+        self.grades()
 
         self.show_schedule()
 
@@ -422,6 +427,82 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.attendance_table.setFixedSize(400, 400)
         attendance_layout.addWidget(self.attendance_table)
 
+    def homework(self): # домашние задания
+        self.homework_widget = QWidget()
+        homework_layout = QVBoxLayout()
+        self.homework_widget.setLayout(homework_layout)
+
+        homework_label = QLabel("Домашние задания:")
+        homework_label.setAlignment(Qt.AlignLeft)
+        homework_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        homework_layout.addWidget(homework_label)
+
+        # окно для дз
+        self.homework_table = QListWidget()
+        self.homework_table.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        self.homework_table.setFixedSize(400, 400)
+        homework_layout.addWidget(self.homework_table)
+
+    def grades(self): # успеваемость (оценки)
+        self.grades_widget = QWidget()
+        grades_layout = QVBoxLayout()
+        self.grades_widget.setLayout(grades_layout)
+
+        grades_label = QLabel("Успеваемость:")
+        grades_label.setAlignment(Qt.AlignLeft)
+        grades_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        grades_layout.addWidget(grades_label)
+
+        # окно для оценок
+        self.grades_table = QListWidget()
+        self.grades_table.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        self.grades_table.setFixedSize(400, 400)
+        grades_layout.addWidget(self.grades_table)
+
     def show_schedule(self): # отображение расписания
         self.clear_content_layout()
 
@@ -436,7 +517,21 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         self.load_attendance()
 
-    def clear_content_layout(self): # очистка content_layout_v
+    def show_homework(self): # отображение дз
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.homework_widget)
+
+        self.load_homework()
+
+    def show_grades(self): # отображение оценок
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.grades_widget)
+
+        self.load_grades()
+
+    def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
         for i in reversed(range(self.content_layout_v.count())):
             widget = self.content_layout_v.itemAt(i).widget()
             if widget is not None:
@@ -528,19 +623,16 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             cursor = conn.cursor()
 
             query = ("""
-                SELECT 
-                    l.date,
-                    sub.subject_name,
-                    t_att.title as attendance_status,
-                    u.surname + ' ' + LEFT(u.name, 1) + '.' + LEFT(u.patronymic, 1) + '.' as teacher_name
+                select l.date, sub.subject_name, t_att.title as attendance_status,
+                    u.surname + ' ' + left(u.name, 1) + '.' + left(u.patronymic, 1) + '.' as teacher_name
                 from lesson l
                 inner join subject sub on sub.id_subject = l.id_subject
                 inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_att ON t_att.id_type_att = a.id_type_att
+                inner join type_attendance t_att on t_att.id_type_att = a.id_type_att
                 inner join subj_teachers s_t on s_t.id_subject = sub.id_subject
                 inner join users u on u.id_user = s_t.id_user
-                WHERE a.id_user = ?
-                ORDER BY l.date DESC
+                where a.id_user = ?
+                order by l.date desc
             """)
 
             cursor.execute(query, (self.id_user))
@@ -617,6 +709,144 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
             self.attendance_table.addItem(error_item)
+
+    def load_homework(self): # загрузка заданий
+        try:
+            cursor = conn.cursor()
+
+            query = ("""
+                select subject.subject_name, exercise.exercise, exercise.upload, exercise.deadline
+                from subject
+                inner join exercise on exercise.id_subject = subject.id_subject
+                inner join subj_students on subj_students.id_subject = subject.id_subject
+                where subj_students.id_user = ?
+                order by exercise.deadline desc
+            """)
+
+            cursor.execute(query, (self.id_user))
+            homework_data = cursor.fetchall()
+
+            self.homework_table.clear()
+
+            if homework_data:
+                current_date = None
+
+                for record in homework_data:
+                    subject_name = record[0]
+                    exercise = record[1]
+                    upload = record[2]
+                    deadline = record[3]
+
+                    formatted_upload = upload.strftime("%d.%m.%Y")
+                    formatted_deadline = deadline.strftime("%d.%m.%Y")
+
+                    date_text = f"Задано: {formatted_upload} \n   Срок сдачи: {formatted_deadline}"
+
+                    name_item = QListWidgetItem(f" {subject_name}")
+                    name_item.setFlags(Qt.NoItemFlags)
+                    name_item.setFont(QFont("Roboto", 9, QFont.Bold))
+                    name_item.setForeground(QColor("#2c3e50"))
+                    self.homework_table.addItem(name_item)
+
+                    date_item = QListWidgetItem(f"   {date_text}")
+                    date_item.setFlags(Qt.NoItemFlags)
+                    date_item.setFont(QFont("Roboto", 8))
+                    self.homework_table.addItem(date_item)
+
+                    exercise_item = QListWidgetItem(f"   {exercise}")
+                    exercise_item.setFlags(Qt.NoItemFlags)
+                    exercise_item.setFont(QFont("Roboto", 8))
+                    self.homework_table.addItem(exercise_item)
+
+                    separator_item = QListWidgetItem("")
+                    separator_item.setFlags(Qt.NoItemFlags)
+                    self.homework_table.addItem(separator_item)
+
+            else:
+                no_homework_item = QListWidgetItem("Данные о заданиях отсутствуют")
+                no_homework_item.setTextAlignment(Qt.AlignCenter)
+                no_homework_item.setFlags(Qt.NoItemFlags)
+                no_homework_item.setForeground(QColor("#7f8c8d"))
+                self.homework_table.addItem(no_homework_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке домашних заданий: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.homework_table.addItem(error_item)
+
+    def load_grades(self): # загрузка оценок
+        try:
+            cursor = conn.cursor()
+
+            query = ("""
+                select subject.subject_name, lesson.date, grade.grade, t_g.title
+                from lesson
+                inner join subject on subject.id_subject = lesson.id_subject
+                inner join grade on grade.id_lesson = lesson.id_lesson
+                inner join type_grade t_g on t_g.id_type_gr = grade.id_type_gr
+                where grade.id_user = ?
+                order by lesson.date
+            """)
+
+            cursor.execute(query, (self.id_user))
+            grades_data = cursor.fetchall()
+
+            self.grades_table.clear()
+
+            if grades_data:
+                current_date = None
+
+                for record in grades_data:
+                    subject_name = record[0]
+                    date = record[1]
+                    grade = record[2]
+                    title = record[3]
+
+                    formatted_date = date.strftime("%d.%m.%Y")
+                    formatted_grade = str(grade)
+
+                    if grade == None:
+                        formatted_grade = "нет оценки"
+
+                    date_text = f"Дата урока: {formatted_date}"
+
+                    name_item = QListWidgetItem(f" {subject_name}: {formatted_grade}")
+                    name_item.setFlags(Qt.NoItemFlags)
+                    name_item.setFont(QFont("Roboto", 9, QFont.Bold))
+                    name_item.setForeground(QColor("#2c3e50"))
+                    self.grades_table.addItem(name_item)
+
+                    date_item = QListWidgetItem(f"   {date_text}")
+                    date_item.setFlags(Qt.NoItemFlags)
+                    date_item.setFont(QFont("Roboto", 8))
+                    self.grades_table.addItem(date_item)
+
+                    title_item = QListWidgetItem(f"   {title}")
+                    title_item.setFlags(Qt.NoItemFlags)
+                    title_item.setFont(QFont("Roboto", 8))
+                    self.grades_table.addItem(title_item)
+
+                    separator_item = QListWidgetItem("")
+                    separator_item.setFlags(Qt.NoItemFlags)
+                    self.grades_table.addItem(separator_item)
+
+            else:
+                no_grades_item = QListWidgetItem("Данные об оценках отсутствуют")
+                no_grades_item.setTextAlignment(Qt.AlignCenter)
+                no_grades_item.setFlags(Qt.NoItemFlags)
+                no_grades_item.setForeground(QColor("#7f8c8d"))
+                self.grades_table.addItem(no_grades_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке домашних заданий: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.grades_table.addItem(error_item)
             
 
 def main():
