@@ -6,9 +6,9 @@ import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, QLineEdit, QTabWidget,
                              QGroupBox, QListWidget, QDialogButtonBox, QDialog, QFormLayout, QMessageBox,
-                             QListWidgetItem, QTextEdit)
-from PyQt5.QtGui import QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette
-from PyQt5.QtCore import Qt, QSize, QTimer, pyqtSignal
+                             QListWidgetItem, QTextEdit, QDateEdit, QCheckBox)
+from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
+from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
 
 uname = "youruser"
 pswd = "password"
@@ -168,9 +168,15 @@ class LoginWindow(QMainWindow):
                     
             if login == "123" and pswd == "123":
                 id_user = 1
-                fio = "администратор"
+                fio = "ученик"
 
                 self.open_main_menu_for_student(id_user, fio)
+
+            elif login == "1" and pswd == "1":
+                id_user = 2
+                fio = "преподаватель"
+
+                self.open_main_menu_for_teacher(id_user, fio)
 
             else:
                 self.error_label.setText("Неверный логин или пароль")
@@ -631,12 +637,13 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 select 
                     s.day_of_week, sub.subject_name, nc.num, nc.letter,
                     u.surname + ' ' + LEFT(u.name, 1) + '.' + LEFT(u.patronymic, 1) + '.' as teacher_name,
-                    s.cabinet
+                    cab.num
                 from schedule s
                 inner join class c ON s.id_class = c.id_class
                 inner join name_class nc ON c.id_name_class = nc.id_name_class
                 inner join subject sub ON s.id_subject = sub.id_subject
                 inner join users u ON s.id_user = u.id_user
+                inner join cabinet cab on cab.id_cabinet = s.id_cabinet
                 where c.id_class in (
                     select c2.id_class 
                     from class c2 
@@ -1022,14 +1029,265 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #21618c;
             }
         """)
+        self.button_tests.clicked.connect(self.test_const_open)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
 
         group_button_layout.addStretch(1)
+
+    def test_const_open(self):
+        self.test_window = TestConstructor(self.id_user, self.fio)
+        self.test_window.show()
 
     def logout(self): # выход из учетки
         self.login_window = LoginWindow()
         self.login_window.show()
         self.close()
+
+
+class TestConstructor(QMainWindow):
+    def __init__(self, id_user = None, fio = None):
+        super().__init__()
+        self.id_user = id_user
+        self.fio = fio
+
+        central_widget = QWidget()
+
+        self.setWindowTitle("Конструктор тестов")
+        self.setFixedSize(900, 600)
+        self.setCentralWidget(central_widget)
+        self.setStyleSheet("background-color: #f0f0f0;")
+
+        main_layout = QVBoxLayout()
+        central_widget.setLayout(main_layout)
+
+        title_label = QLabel("Конструктор тестов")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        """)
+        main_layout.addWidget(title_label)
+
+        # основная группа
+        content_layout = QHBoxLayout()
+        main_layout.addLayout(content_layout)
+
+        left_widget = QWidget() # левая часть составления теста
+        left_widget.setFixedWidth(400)
+        content_layout.addWidget(left_widget)
+
+        test_info_layout = QVBoxLayout() # группа для информации о тесте
+        left_widget.setLayout(test_info_layout)
+
+        # название теста
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Название теста:")
+        name_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.test_name_input = QLineEdit()
+        self.test_name_input.setPlaceholderText("Введите название теста")
+        self.test_name_input.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(self.test_name_input)
+        test_info_layout.addLayout(name_layout)
+
+        # выбор группы
+        group_layout = QHBoxLayout()
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.group_combo = QComboBox()
+        self.group_combo.addItems(["Выберите группу"])
+        self.group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            font-family: Roboto;
+            min-width: 100px;
+        """)
+        group_layout.addWidget(group_label)
+        group_layout.addWidget(self.group_combo)
+        test_info_layout.addLayout(group_layout)
+
+        # выбор срока выполнения
+        date_layout = QHBoxLayout()
+        date_label = QLabel("Срок выполнения:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.deadline_date = QDateEdit()
+        self.deadline_date.setCalendarPopup(True)
+        self.deadline_date.setDate(QDate.currentDate())
+        self.deadline_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        date_layout.addWidget(date_label)
+        date_layout.addWidget(self.deadline_date)
+        test_info_layout.addLayout(date_layout)
+
+       
+        test_constructor_layout = QVBoxLayout() # группа для составления вопросов
+        question_layout = QVBoxLayout()
+        test_constructor_layout.addLayout(question_layout)
+
+        # вопрос
+        question_text_label = QLabel("Текст вопроса:")
+        question_text_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.question_text_edit = QTextEdit()
+        self.question_text_edit.setMaximumHeight(80)
+        self.question_text_edit.setPlaceholderText("Введите текст вопроса...")
+        self.question_text_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        question_layout.addWidget(question_text_label)
+        question_layout.addWidget(self.question_text_edit)
+
+        # ответы
+        answers_label = QLabel("Варианты ответов:")
+        answers_label.setStyleSheet("font-family: Roboto; color: #333; margin-top: 10px;")
+        question_layout.addWidget(answers_label)
+
+        self.answer_widgets = []
+        for i in range(4):
+            answer_layout = QHBoxLayout()
+            answer_checkbox = QCheckBox(f"Вариант {i+1}")
+            answer_checkbox.setStyleSheet("font-family: Roboto;")
+            self.answer_input = QLineEdit()
+            self.answer_input.setPlaceholderText("Введите вариант ответа")
+            self.answer_input.setStyleSheet("""
+                border-radius: 5px;
+                border: 1px solid #ccc;
+                padding: 5px;
+                font-family: Roboto;
+                margin-left: 5px;
+            """)
+            answer_layout.addWidget(answer_checkbox)
+            answer_layout.addWidget(self.answer_input)
+            question_layout.addLayout(answer_layout)
+            self.answer_widgets.append((answer_checkbox, self.answer_input))
+
+        # кнопка добавления вопроса
+        self.add_question_btn = QPushButton("Добавить вопрос в тест")
+        self.add_question_btn.setFixedSize(200, 40)
+        self.add_question_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 12px;
+                font-family: Roboto;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        question_layout.addSpacing(10)
+        question_layout.addWidget(self.add_question_btn, alignment=Qt.AlignLeft)
+
+        test_info_layout.addLayout(test_constructor_layout)
+        test_info_layout.addStretch(1)
+
+        right_widget = QWidget() # правая часть для составленного теста
+        right_layout = QVBoxLayout()
+        right_widget.setLayout(right_layout)
+        content_layout.addWidget(right_widget)
+
+        # список добавленных вопросов
+        self.questions_list = QListWidget()
+        self.questions_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 5px;
+                font-family: Roboto;
+                min-height: 300px;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+                background-color: #f8f9fa;
+                border-radius: 3px;
+                margin: 2px;
+            }
+            QListWidget::item:selected {
+                background-color: #e3f2fd;
+            }
+        """)
+        right_layout.addWidget(self.questions_list)
+
+        # статистика теста
+        stats_layout = QHBoxLayout()
+        self.questions_count_label = QLabel("Вопросов: 0")
+        self.questions_count_label.setStyleSheet("font-family: Roboto; color: #555; font-weight: bold;")
+        stats_layout.addWidget(self.questions_count_label)
+        stats_layout.addStretch()
+        right_layout.addLayout(stats_layout)
+
+        # кнопки для сохранения/предпросмотра/очистки теста
+        buttons_layout = QHBoxLayout()
+        
+        self.save_test_btn = QPushButton("Сохранить тест")
+        self.save_test_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 12px 20px;
+                font-family: Roboto;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        
+        self.clear_test_btn = QPushButton("Очистить")
+        self.clear_test_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 12px 20px;
+                font-family: Roboto;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        
+        buttons_layout.addWidget(self.save_test_btn)
+        buttons_layout.addWidget(self.clear_test_btn)
+        
+        right_layout.addLayout(buttons_layout)
+        right_layout.addStretch(1)
 
 
 def main():
