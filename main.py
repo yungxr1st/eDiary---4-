@@ -4,9 +4,10 @@ import pyodbc
 import pandas as pd
 import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, QLineEdit, QTabWidget,
-                             QGroupBox, QListWidget, QDialogButtonBox, QDialog, QFormLayout, QMessageBox,
-                             QListWidgetItem, QTextEdit, QDateEdit, QCheckBox)
+                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
+                             QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
+                             QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
+                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
 from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
 
@@ -15,10 +16,15 @@ pswd = "password"
 driver = "{ODBC Driver 17 for SQL Server}"
 server = "DESKTOP-Q4NUJUS"
 database = "diary"
+database1 = "diary_pd"
+
+# conn = pyodbc.connect(
+#     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
+#     ';DATABASE=' + database + ';UID=' + uname + ';PWD=' + pswd)
 
 conn = pyodbc.connect(
     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
-    ';DATABASE=' + database + ';UID=' + uname + ';PWD=' + pswd)
+    ';DATABASE=' + database1 + ';Trusted_Connection=yes;' + 'TrustServerCertificate=yes;')
 
 
 class LoginWindow(QMainWindow):
@@ -165,6 +171,8 @@ class LoginWindow(QMainWindow):
                     self.open_main_menu_for_student(id_user, fio)
                 if id_role == 2: # преподаватель
                     self.open_main_menu_for_teacher(id_user, fio)
+                if id_role == 3: # администратор
+                    self.open_main_menu_for_admin(id_user, fio)
                     
             if login == "123" and pswd == "123":
                 id_user = 1
@@ -177,6 +185,12 @@ class LoginWindow(QMainWindow):
                 fio = "преподаватель"
 
                 self.open_main_menu_for_teacher(id_user, fio)
+
+            elif login == "admin" and pswd == "admin":
+                id_user = 3
+                fio = "администратор"
+
+                self.open_main_menu_for_admin(id_user, fio)
 
             else:
                 self.error_label.setText("Неверный логин или пароль")
@@ -198,6 +212,11 @@ class LoginWindow(QMainWindow):
         self.main_menu_teacher = MainMenuTeacher(id_user, fio)
         self.main_menu_teacher.show()
 
+    def open_main_menu_for_admin(self, id_user, fio):
+        self.close()
+
+        self.main_menu_admin = MainMenuAdmin(id_user, fio)
+        self.main_menu_admin.show()
 
 class MainMenuStudent(QMainWindow): # главное меню для ученика
     def __init__(self, id_user = None, fio = None):
@@ -1102,16 +1121,18 @@ class TestConstructor(QMainWindow):
         group_layout = QHBoxLayout()
         group_label = QLabel("Группа:")
         group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        group_layout.addWidget(group_label)
+
         self.group_combo = QComboBox()
         self.group_combo.addItems(["Выберите группу"])
         self.group_combo.setStyleSheet("""
             border-radius: 5px;
             border: 1px solid #ccc;
+            color: #333;
             padding: 5px;
             font-family: Roboto;
             min-width: 100px;
         """)
-        group_layout.addWidget(group_label)
         group_layout.addWidget(self.group_combo)
         test_info_layout.addLayout(group_layout)
 
@@ -1132,14 +1153,39 @@ class TestConstructor(QMainWindow):
         date_layout.addWidget(self.deadline_date)
         test_info_layout.addLayout(date_layout)
 
-       
         test_constructor_layout = QVBoxLayout() # группа для составления вопросов
         question_layout = QVBoxLayout()
         test_constructor_layout.addLayout(question_layout)
+        question_layout.addSpacing(10)
+
+        self.question_from_db = QPushButton("Выбрать из банка вопросов")
+        self.question_from_db.setFixedSize(300, 35)
+        self.question_from_db.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 12px;
+                font-family: Roboto;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.question_from_db.clicked.connect(self.open_que_ans_db)
+        question_layout.addWidget(self.question_from_db, alignment=Qt.AlignCenter)
+        question_layout.addSpacing(10)
 
         # вопрос
         question_text_label = QLabel("Текст вопроса:")
         question_text_label.setStyleSheet("font-family: Roboto; color: #333;")
+        question_layout.addWidget(question_text_label)
         self.question_text_edit = QTextEdit()
         self.question_text_edit.setMaximumHeight(80)
         self.question_text_edit.setPlaceholderText("Введите текст вопроса...")
@@ -1149,7 +1195,6 @@ class TestConstructor(QMainWindow):
             padding: 5px;
             font-family: Roboto;
         """)
-        question_layout.addWidget(question_text_label)
         question_layout.addWidget(self.question_text_edit)
 
         # ответы
@@ -1160,7 +1205,7 @@ class TestConstructor(QMainWindow):
         self.answer_widgets = []
         for i in range(4):
             answer_layout = QHBoxLayout()
-            answer_checkbox = QCheckBox(f"Вариант {i+1}")
+            answer_checkbox = QCheckBox(f"{i+1}.")
             answer_checkbox.setStyleSheet("font-family: Roboto;")
             self.answer_input = QLineEdit()
             self.answer_input.setPlaceholderText("Введите вариант ответа")
@@ -1197,8 +1242,9 @@ class TestConstructor(QMainWindow):
                 background-color: #21618c;
             }
         """)
+        self.add_question_btn.clicked.connect(self.add_question_to_test)
         question_layout.addSpacing(10)
-        question_layout.addWidget(self.add_question_btn, alignment=Qt.AlignLeft)
+        question_layout.addWidget(self.add_question_btn, alignment=Qt.AlignCenter)
 
         test_info_layout.addLayout(test_constructor_layout)
         test_info_layout.addStretch(1)
@@ -1218,6 +1264,7 @@ class TestConstructor(QMainWindow):
                 padding: 5px;
                 font-family: Roboto;
                 min-height: 300px;
+                outline: 0;
             }
             QListWidget::item {
                 padding: 8px;
@@ -1227,7 +1274,12 @@ class TestConstructor(QMainWindow):
                 margin: 2px;
             }
             QListWidget::item:selected {
-                background-color: #e3f2fd;
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }                        
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
             }
         """)
         right_layout.addWidget(self.questions_list)
@@ -1240,7 +1292,7 @@ class TestConstructor(QMainWindow):
         stats_layout.addStretch()
         right_layout.addLayout(stats_layout)
 
-        # кнопки для сохранения/предпросмотра/очистки теста
+        # кнопки для сохранения/очистки теста
         buttons_layout = QHBoxLayout()
         
         self.save_test_btn = QPushButton("Сохранить тест")
@@ -1262,6 +1314,7 @@ class TestConstructor(QMainWindow):
                 background-color: #21618c;
             }
         """)
+        self.save_test_btn.clicked.connect(self.save_test)
         
         self.clear_test_btn = QPushButton("Очистить")
         self.clear_test_btn.setStyleSheet("""
@@ -1282,12 +1335,1135 @@ class TestConstructor(QMainWindow):
                 background-color: #21618c;
             }
         """)
-        
+        self.clear_test_btn.clicked.connect(self.clear_questions_list)
         buttons_layout.addWidget(self.save_test_btn)
         buttons_layout.addWidget(self.clear_test_btn)
         
         right_layout.addLayout(buttons_layout)
         right_layout.addStretch(1)
+
+        self.load_groups_from_db()
+
+    def save_test(self):
+        if not self.validate_test_data():
+            return
+        
+        try:
+            cursor = conn.cursor()
+            
+            test_name = self.test_name_input.text().strip()
+            
+            cursor.execute("""
+                SELECT id_name FROM test_name WHERE name = ?
+            """, (test_name,))
+            existing_name = cursor.fetchone()
+
+            if existing_name:
+                name_id = existing_name[0]
+            else:
+                cursor.execute("""
+                    INSERT INTO test_name (name) VALUES (?)
+                """, (test_name,))
+                name_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+            
+            group_id = self.get_selected_group_id()
+        
+            deadline_date = self.deadline_date.date().toString("yyyy-MM-dd")
+            upload_date = QDate.currentDate().toString("yyyy-MM-dd")
+
+            cursor.execute("""
+                INSERT INTO test (id_name, id_name_class, upload, deadline)
+                VALUES (?, ?, ?, ?)
+            """, (name_id, group_id, upload_date, deadline_date))
+            
+            test_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+            
+            for i in range(self.questions_list.count()):
+                item = self.questions_list.item(i)
+                item_data = item.data(Qt.UserRole)
+
+                if item_data:
+                    question_text = item_data['question_text']
+                    
+                    cursor.execute("""
+                        SELECT id_question FROM test_question WHERE text = ?
+                    """, (question_text,))
+                    existing_question = cursor.fetchone()
+                    
+                    if existing_question:
+                        question_id = existing_question[0]
+                    else:
+                        cursor.execute("""
+                            INSERT INTO test_question (text) VALUES (?)
+                        """, (question_text,))
+                        question_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+                        
+                        for answer in item_data['answers']:
+                            cursor.execute("""
+                                INSERT INTO test_answer (id_question, answer, is_true)
+                                VALUES (?, ?, ?)
+                            """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
+                    
+                    for answer in item_data['answers']:
+                        cursor.execute("""
+                            SELECT id_answer FROM test_answer 
+                            WHERE id_question = ? AND answer = ? AND is_true = ?
+                        """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
+                        
+                        answer_row = cursor.fetchone()
+                        if answer_row:
+                            answer_id = answer_row[0]
+                            
+                            cursor.execute("""
+                                SELECT id_que_ans FROM question_answer 
+                                WHERE id_question = ? AND id_answer = ?
+                            """, (question_id, answer_id))
+                            
+                            if not cursor.fetchone():
+                                cursor.execute("""
+                                    INSERT INTO question_answer (id_question, id_answer)
+                                    VALUES (?, ?)
+                                """, (question_id, answer_id))
+                                
+                                que_ans_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+                                
+                                cursor.execute("""
+                                    INSERT INTO test_content (id_test, id_que_ans)
+                                    VALUES (?, ?)
+                                """, (test_id, que_ans_id))
+        
+            conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(
+                self,
+                "Успех",
+                f"Тест '{test_name}' успешно сохранен"
+            )
+            
+            self.clear_form()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось сохранить тест: {str(e)}"
+            )
+
+    def validate_test_data(self):
+        test_name = self.test_name_input.text().strip()
+        if not test_name:
+            QMessageBox.warning(self, "Предупреждение", "Введите название теста")
+            return False
+        
+        group_id = self.get_selected_group_id()
+        if not group_id:
+            QMessageBox.warning(self, "Предупреждение", "Выберите группу")
+            return False
+        
+        if self.questions_list.count() == 0:
+            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вопрос в тест")
+            return False
+        
+        deadline_date = self.deadline_date.date()
+        if deadline_date < QDate.currentDate():
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение",
+                "Срок выполнения теста уже прошел.\n"
+                "Вы уверены, что хотите продолжить?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return False
+        
+        return True
+    
+    def get_selected_group_id(self):
+        current_index = self.group_combo.currentIndex()
+        if current_index > 0:
+            return self.group_combo.itemData(current_index)
+        return None
+    
+    def clear_form(self):
+        self.test_name_input.clear()
+        self.group_combo.setCurrentIndex(0)
+        self.deadline_date.setDate(QDate.currentDate().addDays(7))
+        self.question_text_edit.clear()
+        
+        for checkbox, line_edit in self.answer_widgets:
+            checkbox.setChecked(False)
+            line_edit.clear()
+        
+        self.questions_list.clear()
+        self.update_questions_count()
+
+    def load_groups_from_db(self): # группы для списка
+        try:
+            cursor = conn.cursor()
+            
+            query = ("""
+            SELECT DISTINCT
+                nc.id_name_class,
+                nc.num,
+                nc.letter
+            FROM name_class nc
+            ORDER BY nc.num, nc.letter
+            """)
+        
+            cursor.execute(query)
+            groups_data = cursor.fetchall()
+            
+            self.group_combo.clear()
+            
+            if groups_data:
+                self.group_combo.addItem("Выберите группу")
+                for group in groups_data:
+                    class_num = group[1]
+                    class_letter = group[2]
+                    group_name = f"{class_num}{class_letter}"
+                    self.group_combo.addItem(group_name, group[0])
+            else:
+                self.group_combo.addItem("Нет доступных групп")
+                self.group_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить группы: {str(e)}")
+            self.group_combo.clear()
+            self.group_combo.addItem("Ошибка загрузки")
+            self.group_combo.setEnabled(False)
+
+    def clear_questions_list(self): # очистка questions_list
+        if self.questions_list.count() == 0:
+            QMessageBox.information(
+                self,
+                "Очистка",
+                "Список вопросов пуст."
+            )
+            return
+
+        msg_box = QMessageBox(QMessageBox.Question, 
+            "Очистка", 
+            "Вы уверены, что хотите удалить все вопросы из теста?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        yes_button = msg_box.button(QMessageBox.Yes)
+        no_button = msg_box.button(QMessageBox.No)
+        if yes_button:
+            yes_button.setText("Да")
+        if no_button:
+            no_button.setText("Нет")
+        msg_box.setDefaultButton(QMessageBox.No)
+        
+        if msg_box.exec_() == QMessageBox.Yes:
+            self.questions_list.clear()
+            self.update_questions_count()
+
+    def update_questions_count(self):
+        count = self.questions_list.count()
+        self.questions_count_label.setText(f"Вопросов: {count}")
+
+    def open_que_ans_db(self): # открытие окна для выбора вопросов из бд
+        dialog = QuestionAnswerFromDB(self)
+        if dialog.exec_() == QDialog.Accepted:
+            question_details = dialog.get_selected_question_details()
+
+            if question_details:
+                self.question_text_edit.setText(question_details['text'])
+                answers_list = question_details['answers']
+                
+                for checkbox, line_edit in self.answer_widgets:
+                    checkbox.setChecked(False)
+                    line_edit.clear()
+
+                for i, (checkbox, line_edit) in enumerate(self.answer_widgets):
+                    if i < len(answers_list):
+                        answer = answers_list[i]
+                        line_edit.setText(answer['text'])
+                        checkbox.setChecked(answer['is_correct'])
+                    else:
+                        checkbox.setChecked(False)
+                        line_edit.clear()
+
+                # pass
+                # count = self.questions_list.count() + 1
+                # self.questions_list.addItem(f"Задание {count}\n"
+                #     f"Вопрос: {question_text}\n"
+                #     f"Варианты ответов: {answers_text}"
+                # )
+                # self.questions_count_label.setText(f"Вопросов: {count}")
+
+    def add_question_to_test(self): # добавление теста по кнопке
+        question_text = self.question_text_edit.toPlainText().strip()
+        
+        if not question_text:
+            QMessageBox.warning(self, "Предупреждение", "Введите текст вопроса")
+            return
+        
+        answers_data = []
+
+        for checkbox, line_edit in self.answer_widgets:
+            answer_text = line_edit.text().strip()
+            if answer_text:
+                is_correct = checkbox.isChecked()
+                answers_data.append({
+                    'text': answer_text,
+                    'is_correct': is_correct
+                })
+
+        has_correct_answer = any(answer['is_correct'] for answer in answers_data)
+        if not has_correct_answer:
+            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа")
+            return
+
+        question_number = self.questions_list.count() + 1
+        
+        answers_display = []
+        for answer in answers_data:
+            marker = " + " if answer['is_correct'] else " - "
+            answers_display.append(f"{answer['text']}{marker}")
+        
+        answers_text = "; ".join(answers_display)
+        
+        item_text = (f"Задание {question_number}\n"
+                    f"Вопрос: {question_text}\n"
+                    f"Варианты ответов: {answers_text}")
+        list_item = QListWidgetItem(item_text)
+
+        list_item.setData(Qt.UserRole, {
+            'question_text': question_text,
+            'answers': answers_data,
+            'question_number': question_number
+        })
+        
+        self.questions_list.addItem(list_item)
+        self.update_questions_count()
+        self.clear_question_fields()
+
+    def update_questions_count(self):
+        count = self.questions_list.count()
+        self.questions_count_label.setText(f"Вопросов: {count}")
+
+    def clear_question_fields(self):
+        self.question_text_edit.clear()
+        
+        for checkbox, line_edit in self.answer_widgets:
+            checkbox.setChecked(False)
+            line_edit.clear()
+
+
+class QuestionAnswerFromDB(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_question_id = None
+        self.setWindowTitle("Банк вопросов")
+        self.setFixedSize(500, 400)
+        self.setModal(True)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+
+        main_layout = QVBoxLayout()
+        self.setLayout(main_layout)
+        
+        # таблица для вывода вопросов и ответов
+        self.questions_table = QTableWidget()
+        self.questions_table.setFixedSize(480, 320)
+        self.questions_table.setColumnCount(2)
+        self.questions_table.setHorizontalHeaderLabels(["Вопрос", "Ответы"])
+        self.questions_table.horizontalHeader().setStretchLastSection(True)
+        self.questions_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.questions_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.questions_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        main_layout.addWidget(self.questions_table, alignment=Qt.AlignCenter)
+        
+        # кнопка выбора вопроса
+        self.select_button = QPushButton("Выбрать вопрос")
+        self.select_button.setFixedSize(150, 35)
+        self.select_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 12px;
+                font-family: Roboto;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.select_button.clicked.connect(self.accept_selection)
+        self.select_button.setEnabled(False)
+        main_layout.addStretch()
+        main_layout.addWidget(self.select_button, alignment=Qt.AlignCenter)
+        main_layout.addStretch()
+
+        self.load_questions_from_db() # загрузка из бд
+        self.questions_table.itemSelectionChanged.connect(self.on_selection_changed) # выбор строки
+
+    def load_questions_from_db(self): # загрузка вопросов и ответов из бд
+        try:
+            cursor = conn.cursor()
+            
+            query = ("""
+                select 
+                    q.id_question,
+                    q.text as question_text,
+                    STRING_AGG(a.answer + 
+                        CASE WHEN a.is_true = 1 THEN ' + ' ELSE ' - ' END, 
+                        ', ') as answers_list
+                from test_question q
+                left join test_answer a ON q.id_question = a.id_question
+                group by q.id_question, q.text
+                order by q.id_question
+            """)
+            
+            cursor.execute(query)
+            questions_data = cursor.fetchall()
+            
+            self.questions_table.setRowCount(len(questions_data))
+            
+            
+            for row, question in enumerate(questions_data):
+                question_id = question[0]
+                question_text = question[1]
+                answers_text = question[2] if question[2] else "Нет вариантов ответов"
+                
+                # вопрос
+                question_item = QTableWidgetItem(question_text)
+                question_item.setData(Qt.UserRole, question_id)
+                question_item.setFlags(question_item.flags() & ~Qt.ItemIsEditable)
+                self.questions_table.setItem(row, 0, question_item)
+                
+                # ответ
+                answers_item = QTableWidgetItem(answers_text)
+                answers_item.setFlags(answers_item.flags() & ~Qt.ItemIsEditable)
+                self.questions_table.setItem(row, 1, answers_item)
+            
+            # размеры столбцов
+            self.questions_table.resizeColumnsToContents()
+            self.questions_table.verticalHeader().setDefaultSectionSize(60)
+            self.questions_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить вопросы: {str(e)}")
+
+    def on_selection_changed(self):
+        selected_items = self.questions_table.selectedItems()
+        self.select_button.setEnabled(len(selected_items) > 0)
+    
+    def accept_selection(self):
+        selected_row = self.questions_table.currentRow()
+        if selected_row >= 0:
+            question_item = self.questions_table.item(selected_row, 0)
+            self.selected_question_id = question_item.data(Qt.UserRole)
+            self.accept()
+    
+    def get_selected_question_id(self): # id вопроса
+        return self.selected_question_id
+    
+    def get_selected_question_text(self): # текст вопроса
+        selected_row = self.questions_table.currentRow()
+        if selected_row >= 0:
+            return self.questions_table.item(selected_row, 0).text()
+        return None
+    
+    def get_selected_question_answers(self): # ответы
+        selected_row = self.questions_table.currentRow()
+        if selected_row >= 0:
+            return self.questions_table.item(selected_row, 1).text()
+        return None
+    
+    def get_selected_question_details(self):
+        selected_row = self.questions_table.currentRow()
+        if selected_row >= 0:
+            question_id = self.selected_question_id
+            question_text = self.questions_table.item(selected_row, 0).text()
+            
+            answers_details = self.get_question_answers_details(question_id)
+            
+            return {
+                'id': question_id,
+                'text': question_text,
+                'answers': answers_details
+            }
+        return None
+    
+    def get_question_answers_details(self, question_id):
+        try:
+            cursor = conn.cursor()
+            
+            query = ("""
+                SELECT 
+                    answer,
+                    is_true,
+                    id_answer
+                FROM test_answer
+                WHERE id_question = ?
+                ORDER BY id_answer
+            """)
+            
+            cursor.execute(query, (question_id,))
+            answers_data = cursor.fetchall()
+            
+            answers_list = []
+            for answer_row in answers_data:
+                answer_text = answer_row[0]
+                is_correct = bool(answer_row[1])
+                answer_id = answer_row[2]
+                
+                answers_list.append({
+                    'text': answer_text,
+                    'is_correct': is_correct,
+                    'id': answer_id
+                })
+            
+            cursor.close()
+            return answers_list
+            
+        except Exception as e:
+            print(f"Ошибка при загрузке ответов: {str(e)}")
+            return []
+
+
+class MainMenuAdmin(QMainWindow):
+    def __init__(self, id_user = None, fio = None):
+        super().__init__()
+        self.id_user = id_user
+        self.fio = fio
+
+        central_widget = QWidget()
+
+        self.setWindowTitle("Главное меню")
+        self.setFixedSize(900, 600)
+        self.setCentralWidget(central_widget)
+        self.setStyleSheet("background-color: #f0f0f0;")
+
+        main_layout = QVBoxLayout()
+        central_widget.setLayout(main_layout)
+
+        main_layout_top = QHBoxLayout()
+        main_layout.addLayout(main_layout_top)
+
+        # верхняя часть
+        label = QLabel(f"Добро пожаловать, {fio}")
+        label.setAlignment(Qt.AlignLeft)
+        label.setStyleSheet("""
+            font-size: 20px;
+            font-family: Roboto;
+            color: #333;
+            padding-top: 5px;
+        """)
+        main_layout_top.addWidget(label)
+
+        # кнопка выйти
+        self.button_exit = QPushButton("Выйти")
+        self.button_exit.setFixedSize(120, 35)
+        self.button_exit.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addWidget(self.button_exit)
+
+        # кнопки добавить/редактировать/удалить
+        buttons_layout = QHBoxLayout()
+        main_layout.addLayout(buttons_layout)
+        buttons_layout.setSpacing(10)
+
+        self.user_add_button = QPushButton("Добавить пользователя")
+        self.user_add_button.setFixedSize(200, 40)
+        self.user_add_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.user_add_button.clicked.connect(self.open_add_user_dialog)
+        buttons_layout.addWidget(self.user_add_button)
+
+        self.user_edit_button = QPushButton("Редактировать пользователя")
+        self.user_edit_button.setFixedSize(200, 40)
+        self.user_edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.user_edit_button.clicked.connect(self.open_edit_user_dialog)
+        buttons_layout.addWidget(self.user_edit_button)
+
+        self.user_delete_button = QPushButton("Удалить пользователя")
+        self.user_delete_button.setFixedSize(200, 40)
+        self.user_delete_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.user_delete_button.clicked.connect(self.open_delete_user_dialog)
+        buttons_layout.addWidget(self.user_delete_button)
+
+        # таблица для вывода пользователей
+        self.users_table = QTableWidget()
+        self.users_table.setColumnCount(6)
+        self.users_table.setHorizontalHeaderLabels([
+            "Фамилия", "Имя", "Отчество", "Логин", "Роль", "Активен"
+        ])
+        self.users_table.horizontalHeader().setStretchLastSection(True)
+        self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.users_table.setSelectionMode(QTableWidget.SingleSelection)
+        
+        table_style = ("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        self.users_table.setStyleSheet(table_style)
+        
+        # заголовки
+        header = self.users_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)  # фамилия
+        header.setSectionResizeMode(1, QHeaderView.Stretch)  # имя
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  # отчество
+        header.setSectionResizeMode(3, QHeaderView.Stretch)  # логин
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # роль
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # активность
+        
+        main_layout.addWidget(self.users_table)
+
+        stats_layout = QHBoxLayout()
+        self.total_users_label = QLabel("Всего пользователей: 0")
+        self.active_users_label = QLabel("Активных: 0")
+        self.inactive_users_label = QLabel("Неактивных: 0")
+        
+        stats_style = "font-family: Roboto; color: #555; font-weight: bold; padding: 5px;"
+        self.total_users_label.setStyleSheet(stats_style)
+        self.active_users_label.setStyleSheet(stats_style)
+        self.inactive_users_label.setStyleSheet(stats_style)
+        
+        stats_layout.addWidget(self.total_users_label)
+        stats_layout.addWidget(self.active_users_label)
+        stats_layout.addWidget(self.inactive_users_label)
+        stats_layout.addStretch()
+        
+        main_layout.addLayout(stats_layout)
+
+        self.load_users()
+        
+        self.users_table.itemSelectionChanged.connect(self.update_buttons_state)
+
+    def logout(self): # выход из учетки
+        self.login_window = LoginWindow()
+        self.login_window.show()
+        self.close()
+
+    def load_users(self): # загрузка пользователей
+        try:
+            cursor = conn.cursor()
+            
+            query = ("""
+                SELECT 
+                    u.id_user,
+                    u.surname,
+                    u.name,
+                    u.patronymic,
+                    u.login,
+                    r.title as role_name,
+                    u.is_active
+                FROM users u
+                INNER JOIN role r ON u.id_role = r.id_role
+                ORDER BY u.surname, u.name
+            """)
+            
+            cursor.execute(query)
+            users_data = cursor.fetchall()
+            
+            self.users_table.setRowCount(len(users_data))
+            
+            total_users = 0
+            active_users = 0
+            inactive_users = 0
+            
+            for row, user in enumerate(users_data):
+                user_id = user[0]
+                surname = user[1]
+                name = user[2]
+                patronymic = user[3]
+                login = user[4]
+                role_name = user[5]
+                is_active = bool(user[6])
+                
+                total_users += 1
+                if is_active:
+                    active_users += 1
+                else:
+                    inactive_users += 1
+                
+                items = [
+                    QTableWidgetItem(surname if surname else ""),
+                    QTableWidgetItem(name if name else ""),
+                    QTableWidgetItem(patronymic if patronymic else ""),
+                    QTableWidgetItem(login),
+                    QTableWidgetItem(role_name),
+                    QTableWidgetItem("Да" if is_active else "Нет")
+                ]
+                
+                for col, item in enumerate(items):
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    if col == 5:
+                        item.setForeground(QColor("#27ae60") if is_active else QColor("#e74c3c"))
+                    self.users_table.setItem(row, col, item)
+            
+            cursor.close()
+            
+            self.total_users_label.setText(f"Всего пользователей: {total_users}")
+            self.active_users_label.setText(f"Активных: {active_users}")
+            self.inactive_users_label.setText(f"Неактивных: {inactive_users}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить пользователей: {str(e)}")
+
+    def update_buttons_state(self):
+        selected_rows = self.users_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) > 0
+        
+        self.user_edit_button.setEnabled(has_selection)
+        self.user_delete_button.setEnabled(has_selection)
+
+    def open_add_user_dialog(self): # добавление пользователя
+        dialog = AddEditUserDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_users()
+
+    def open_edit_user_dialog(self): # редактирование пользователя
+        selected_row = self.users_table.currentRow()
+        if selected_row >= 0:
+            login = self.users_table.item(selected_row, 3).text()
+            dialog = AddEditUserDialog(self, login=login)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_users()
+
+    def open_delete_user_dialog(self): # удаление пользователя
+        selected_row = self.users_table.currentRow()
+        if selected_row >= 0:
+            login = self.users_table.item(selected_row, 3).text()
+            user_name = f"{self.users_table.item(selected_row, 0).text()} {self.users_table.item(selected_row, 1).text()}"
+            
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение удаления",
+                f"Вы уверены, что хотите отключить пользователя:\n{user_name}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                try:
+                    cursor = conn.cursor()
+                    # Обновляем по логину
+                    cursor.execute("""
+                        UPDATE users
+                        SET is_active = 0
+                        WHERE login = ?
+                    """, (login,))
+                    conn.commit()
+                    cursor.close()
+                    QMessageBox.information(self, "Успех", "Пользователь отключен")
+                    self.load_users()
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка", f"Не удалось отключить пользователя: {str(e)}")
+
+
+class AddEditUserDialog(QDialog):
+    def __init__(self, parent=None, user_id=None, login=None):
+        super().__init__(parent)
+        self.user_id = user_id
+        self.login = login
+        self.is_edit_mode = login is not None or user_id is not None
+        
+        self.setWindowTitle("Редактировать пользователя" if self.is_edit_mode else "Добавить пользователя")
+        self.setFixedSize(500, 450)
+        self.setModal(True)
+        
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(15)
+        
+        # фамилия
+        self.surname_edit = QLineEdit()
+        self.surname_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: Roboto;
+        """)
+        form_layout.addRow("Фамилия:", self.surname_edit)
+        
+        # имя
+        self.name_edit = QLineEdit()
+        self.name_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: Roboto;
+        """)
+        form_layout.addRow("Имя:", self.name_edit)
+        
+        # отчество
+        self.patronymic_edit = QLineEdit()
+        self.patronymic_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: Roboto;
+        """)
+        form_layout.addRow("Отчество:", self.patronymic_edit)
+        
+        # логин
+        self.login_edit = QLineEdit()
+        self.login_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: Roboto;
+        """)
+        form_layout.addRow("Логин:", self.login_edit)
+        
+        # пароль
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            font-family: Roboto;
+        """)
+        if not self.is_edit_mode:
+            form_layout.addRow("Пароль:", self.password_edit)
+        
+        # роль
+        self.role_combo = QComboBox()
+        self.role_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+            min-width: 100px;
+        """)
+        self.load_roles()
+        form_layout.addRow("Роль:", self.role_combo)
+        
+        self.active_checkbox = QCheckBox("Активный пользователь")
+        self.active_checkbox.setChecked(True)
+        self.active_checkbox.setStyleSheet("font-family: Roboto;")
+        form_layout.addRow("", self.active_checkbox)
+        
+        layout.addLayout(form_layout)
+        
+        buttons_layout = QHBoxLayout()
+        
+        self.save_button = QPushButton("Сохранить")
+        self.save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 12px;
+                font-family: Roboto;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.save_button.clicked.connect(self.save_user)
+        
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.save_button)
+        buttons_layout.addStretch()
+        
+        layout.addLayout(buttons_layout)
+        
+        if self.is_edit_mode: # для режима редактирования
+            if self.login:
+                self.load_user_data_by_login()
+            else:
+                self.load_user_data()
+
+    def load_roles(self): # список ролей
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id_role, title FROM role ORDER BY id_role")
+            roles = cursor.fetchall()
+            
+            for role_id, role_name in roles:
+                self.role_combo.addItem(role_name, role_id)
+            
+            cursor.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить роли: {str(e)}")
+
+    def load_user_data(self): 
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT surname, name, patronymic, login, id_role, is_active
+                FROM users WHERE id_user = ?
+            """, (self.user_id,))
+            
+            user_data = cursor.fetchone()
+            if user_data:
+                self.surname_edit.setText(user_data[0] or "")
+                self.name_edit.setText(user_data[1] or "")
+                self.patronymic_edit.setText(user_data[2] or "")
+                self.login_edit.setText(user_data[3] or "")
+                
+                role_id = user_data[4]
+                for i in range(self.role_combo.count()):
+                    if self.role_combo.itemData(i) == role_id:
+                        self.role_combo.setCurrentIndex(i)
+                        break
+                
+                self.active_checkbox.setChecked(bool(user_data[5]))
+            
+            cursor.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить данные пользователя: {str(e)}")
+
+    def save_user(self):  # сохранение
+        if not self.validate_data():
+            return
+        
+        try:
+            cursor = conn.cursor()
+            surname = self.surname_edit.text().strip()
+            name = self.name_edit.text().strip()
+            patronymic = self.patronymic_edit.text().strip()
+            login = self.login_edit.text().strip()
+            role_id = self.role_combo.currentData()
+            is_active = 1 if self.active_checkbox.isChecked() else 0
+            
+            if self.is_edit_mode:
+                if self.password_edit.text():
+                    password_hash = hashlib.sha256(self.password_edit.text().encode()).hexdigest()
+                    cursor.execute("""
+                        UPDATE users
+                        SET surname = ?, name = ?, patronymic = ?,
+                            login = ?, password = ?, id_role = ?, is_active = ?
+                        WHERE id_user = ?
+                    """, (surname, name, patronymic, login, password_hash, role_id, is_active, self.user_id))
+                else:
+                    cursor.execute("""
+                        UPDATE users
+                        SET surname = ?, name = ?, patronymic = ?,
+                            login = ?, id_role = ?, is_active = ?
+                        WHERE id_user = ?
+                    """, (surname, name, patronymic, login, role_id, is_active, self.user_id))
+            else:
+                password = self.password_edit.text()
+                if not password:
+                    QMessageBox.warning(self, "Ошибка", "Укажите пароль")
+                    return
+                
+                password_hash = hashlib.sha256(password.encode()).hexdigest()
+                cursor.execute("""
+                    INSERT INTO users (surname, name, patronymic, login, password, id_role, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (surname, name, patronymic, login, password_hash, role_id, is_active))
+            
+            conn.commit()
+            cursor.close()
+            self.accept()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить пользователя: {str(e)}")
+
+    def validate_data(self):
+        errors = []
+        
+        if not self.name_edit.text().strip():
+            errors.append("Введите имя")
+        if not self.surname_edit.text().strip():
+            errors.append("Введите фамилию")
+        if not self.login_edit.text().strip():
+            errors.append("Введите логин")
+        
+        try:
+            cursor = conn.cursor()
+            query = "SELECT COUNT(*) FROM users WHERE login = ?"
+            params = [self.login_edit.text().strip()]
+            
+            if self.is_edit_mode:
+                query += " AND id_user != ?"
+                params.append(self.user_id)
+            
+            cursor.execute(query, params)
+            count = cursor.fetchone()[0]
+            if count > 0:
+                errors.append("Пользователь с таким логином уже существует")
+            cursor.close()
+        except:
+            pass
+        
+        if errors:
+            QMessageBox.warning(self, "Ошибка валидации", "\n".join(errors))
+            return False
+        
+        return True
+    
+    def load_user_data_by_login(self):
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id_user, surname, name, patronymic, login, id_role, is_active
+                FROM users WHERE login = ?
+            """, (self.login,))
+            user_data = cursor.fetchone()
+            
+            if user_data:
+                self.user_id = user_data[0]
+                self.surname_edit.setText(user_data[1] or "")
+                self.name_edit.setText(user_data[2] or "")
+                self.patronymic_edit.setText(user_data[3] or "")
+                self.login_edit.setText(user_data[4] or "")
+                
+                role_id = user_data[5]
+                for i in range(self.role_combo.count()):
+                    if self.role_combo.itemData(i) == role_id:
+                        self.role_combo.setCurrentIndex(i)
+                        break
+                
+                self.active_checkbox.setChecked(bool(user_data[6]))
+            else:
+                QMessageBox.warning(self, "Ошибка", "Пользователь не найден")
+                self.reject()
+                
+            cursor.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить данные пользователя: {str(e)}")
 
 
 def main():
