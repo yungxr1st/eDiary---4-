@@ -7,7 +7,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, 
                              QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
                              QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
                              QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
+                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, 
+                             QRadioButton, QScrollArea)
 from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
 from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
 
@@ -65,7 +66,7 @@ class LoginWindow(QMainWindow):
             border: 2px solid #585858;
             padding: 5px;
             font-size: 12px;
-        """ # для ввода текста в элементы
+        """ # ввод текста в элементы
 
         # логин
         login_label = QLabel("Логин:")
@@ -257,7 +258,6 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 color: white;
                 border-radius: 5px;
                 font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -591,21 +591,31 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.tests_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
-                border: 1px solid #ccc;
+                border: 1px solid #ddd;
                 border-radius: 5px;
                 padding: 10px;
                 font-family: Roboto;
+                outline: 0;
             }
             QListWidget::item {
                 padding: 8px;
                 border-bottom: 1px solid #eee;
+                background-color: #f8f9fa;
+                border-radius: 3px;
+                margin: 2px;
             }
-            QListWidget::item:last {
-                border-bottom: none;
+            QListWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #000;
+            }                        
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
             }
         """)
         self.tests_table.setFixedSize(400, 400)
         tests_layout.addWidget(self.tests_table)
+        self.tests_table.itemDoubleClicked.connect(self.open_test_window)
 
     def show_schedule(self): # отображение расписания
         self.clear_content_layout()
@@ -962,7 +972,774 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             self.grades_table.addItem(error_item)
 
     def load_tests(self): # загрузка тестов
-        pass
+        try:
+            cursor = conn.cursor()
+
+            query = ("""
+                declare @id_user int = ?;
+                select t_n.name, t.upload, t.deadline, 'Вопросов: ' + 
+                cast(count(distinct q_a.id_question) as varchar(2)) as questions, 
+                convert(varchar, s_t.grade) as grade, 
+                convert(varchar, s_t.grade_percent) as grade_percent, 
+                t.id_test
+                from test_name t_n
+                inner join test t on t.id_name = t_n.id_name
+                left join test_content t_c on t_c.id_test = t.id_test
+                left join question_answer q_a on q_a.id_que_ans = t_c.id_que_ans
+                left join solved_tests s_t on s_t.id_test = t.id_test and s_t.id_user = @id_user
+                where id_name_class = (select id_name_class from class where id_user = @id_user)
+                group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, s_t.grade_percent
+                order by deadline desc, upload desc, t_n.name desc
+            """)
+
+            cursor.execute(query, (self.id_user))
+            tests_data = cursor.fetchall()
+
+            self.tests_table.clear()
+
+            if tests_data:
+                current_date = None
+
+                for record in tests_data:
+                    test_name = record[0]
+                    upload = record[1]
+                    deadline = record[2]
+                    questions = record[3]
+                    grade = record[4]
+                    grade_percent = record[5]
+                    test_id = record[6]
+
+                    formatted_upload = upload.strftime("%d.%m.%Y")
+                    formatted_deadline = deadline.strftime("%d.%m.%Y")
+
+                    if grade == None:
+                        grade = "Нет оценки"
+                    if grade_percent == None:
+                        grade_percent = "0"
+
+                    date_text = (
+                        f"Тест открыт с: {formatted_upload}\n"
+                        f"Срок сдачи: {formatted_deadline}"
+                    )
+
+                    name = (
+                        f"{test_name}\n{grade} "
+                        f"({grade_percent}%)"
+                    )
+
+                    questions_sum = (f"{questions}")
+
+                    date_item = (f"{date_text}")
+
+                    test_item = (
+                        f"{name}\n"
+                        f"{questions_sum}\n"
+                        f"{date_item}"
+                    )
+
+                    test_list = QListWidgetItem(test_item)
+                    self.tests_table.addItem(test_list)
+
+                    test_list.setData(Qt.UserRole, test_id)
+
+            else:
+                no_tests_item = QListWidgetItem("Данные о тестах отсутствуют")
+                no_tests_item.setTextAlignment(Qt.AlignCenter)
+                no_tests_item.setFlags(Qt.NoItemFlags)
+                no_tests_item.setForeground(QColor("#7f8c8d"))
+                self.tests_table.addItem(no_tests_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке тестов: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.tests_table.addItem(error_item)
+
+    def open_test_window(self, item):
+        test_id = item.data(Qt.UserRole)
+        
+        if not test_id:
+            QMessageBox.warning(self, "Ошибка", "Не удалось получить информацию о тесте")
+            return
+        
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) FROM solved_tests 
+                WHERE id_test = ? AND id_user = ?
+            """, (test_id, self.id_user))
+            
+            result = cursor.fetchone()
+            if result[0] > 0:
+                reply = QMessageBox(
+                    QMessageBox.Question,
+                    "Тест",
+                    "Пройти тест заново?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                yes_button = reply.button(QMessageBox.Yes)
+                no_button = reply.button(QMessageBox.No)
+                if yes_button:
+                    yes_button.setText("Да")
+                if no_button:
+                    no_button.setText("Нет")
+                reply.setDefaultButton(QMessageBox.No)
+
+                if reply.exec_() == QMessageBox.No:
+                    return
+            
+            cursor.execute("""
+                SELECT tn.name 
+                FROM test t
+                INNER JOIN test_name tn ON tn.id_name = t.id_name
+                WHERE t.id_test = ?
+            """, (test_id,))
+            
+            test_data = cursor.fetchone()
+            test_name = test_data[0] if test_data else "Без названия"
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при проверке теста: {str(e)}")
+            return
+        
+        self.test_window = TestExecutionWindow(test_id, self.id_user, test_name)
+        result = self.test_window.exec_()
+        self.load_tests()
+        
+        if hasattr(self, 'tests_widget') and self.tests_widget.isVisible():
+            self.load_tests()
+
+
+class TestExecutionWindow(QDialog):
+    def __init__(self, test_id=None, user_id=None, test_name=None):
+        super().__init__()
+        self.test_id = test_id
+        self.user_id = user_id
+        self.test_name = test_name
+        self.current_question = 0
+        self.answers = {} # для хранения ответов
+        
+        self.setWindowTitle(f"{test_name}")
+        self.setFixedSize(500, 400)
+        self.setModal(True)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint)
+        
+        main_layout = QVBoxLayout()
+        self.setLayout(main_layout)
+        top_layout = QHBoxLayout()
+        main_layout.addLayout(top_layout)
+
+        self.question_num = QLabel("Вопрос 1")
+        self.question_num.setStyleSheet("""
+            font-family: Roboto; 
+            color: #333;
+            font-size: 14pt;
+        """)
+        top_layout.addWidget(self.question_num, alignment=Qt.AlignLeft)
+
+        # кнопка выхода из теста
+        cancel_button = QPushButton("Выход")
+        cancel_button.setFixedSize(80, 35)
+        cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        cancel_button.clicked.connect(self.cancel_test)
+        top_layout.addWidget(cancel_button, alignment=Qt.AlignRight)
+
+        # текущий вопрос
+        self.question_container = QWidget()
+        self.question_layout = QVBoxLayout(self.question_container)
+        main_layout.addWidget(self.question_container)
+        
+        progress_layout = QHBoxLayout()
+        self.progress_label = QLabel("Вопрос 1 из 1")
+        self.progress_label.setStyleSheet("font-size: 12px; color: #7f8c8d;")
+        progress_layout.addWidget(self.progress_label)
+        progress_layout.addStretch()
+        main_layout.addLayout(progress_layout)
+
+        # группа для кнопок
+        buttons_layout = QHBoxLayout()
+
+        # предыдущий вопрос
+        self.prev_button = QPushButton("Предыдущий")
+        self.prev_button.setFixedSize(120, 35)
+        self.prev_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+        """)
+        self.prev_button.clicked.connect(self.show_previous_question)
+        buttons_layout.addWidget(self.prev_button)
+        self.prev_button.setEnabled(False)
+        
+        # cледующий вопрос
+        self.next_button = QPushButton("Следующий")
+        self.next_button.setFixedSize(120, 35)
+        self.next_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+        """)
+        self.next_button.clicked.connect(self.show_next_question)
+        buttons_layout.addWidget(self.next_button)
+        
+        # кнопка завершения теста
+        submit_button = QPushButton("Завершить тест")
+        submit_button.setFixedSize(150, 35)
+        submit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        submit_button.clicked.connect(self.submit_test)
+        buttons_layout.addWidget(submit_button)
+        
+        main_layout.addLayout(buttons_layout)
+        
+        self.questions_data = []
+        self.load_test_questions()
+        
+    def load_test_questions(self):
+        try:
+            cursor = conn.cursor()
+            
+            query = ("""
+                SELECT DISTINCT 
+                    tq.id_question,
+                    tq.text as question_text
+                FROM test t
+                INNER JOIN test_content tc ON tc.id_test = t.id_test
+                INNER JOIN question_answer qa ON qa.id_que_ans = tc.id_que_ans
+                INNER JOIN test_question tq ON tq.id_question = qa.id_question
+                WHERE t.id_test = ?
+                ORDER BY tq.id_question
+            """)
+            
+            cursor.execute(query, (self.test_id,))
+            questions = cursor.fetchall()
+            
+            if not questions:
+                QMessageBox.warning(self, "Ошибка", "В тесте нет вопросов")
+                self.close()
+                return
+            
+            for question in questions:
+                question_id = question[0]
+                question_text = question[1]
+                
+                answers_query = ("""
+                    SELECT 
+                        ta.id_answer,
+                        ta.answer,
+                        ta.is_true
+                    FROM test_answer ta
+                    WHERE ta.id_question = ?
+                    ORDER BY ta.id_answer
+                """)
+
+                cursor.execute(answers_query, (question_id,))
+                answers = cursor.fetchall()
+                
+                correct_count = sum(1 for ans in answers if ans[2] == 1)
+                
+                question_data = {
+                    'question_id': question_id,
+                    'text': question_text,
+                    'answers': answers,
+                    'is_single_choice': correct_count == 1,
+                    'correct_count': correct_count
+                }
+                
+                self.questions_data.append(question_data)
+                self.answers[question_id] = []
+            
+            cursor.close()
+
+            self.show_current_question()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при загрузке вопросов: {str(e)}")
+            self.close()
+
+    def show_current_question(self): # текущий вопрос
+        for i in reversed(range(self.question_layout.count())): 
+            self.question_layout.itemAt(i).widget().setParent(None)
+        
+        if self.current_question >= len(self.questions_data):
+            return
+        
+        question_data = self.questions_data[self.current_question]
+        question_id = question_data['question_id']
+
+        self.question_num.setText(f"Вопрос {self.current_question + 1}")
+
+        question_group = QGroupBox()
+        question_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: bold;
+                color: #2c3e50;
+                border-radius: 8px;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 3px;
+            }
+        """)
+        
+        group_layout = QVBoxLayout()
+
+        # текст вопроса 
+        question_label = QLabel(question_data['text'])
+        question_label.setWordWrap(True)
+        question_label.setStyleSheet("""
+            font-size: 13px;
+            color: #333;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin: 5px;
+        """)
+        group_layout.addWidget(question_label)
+
+        self.answer_widgets = []
+        saved_answers = self.answers.get(question_id, [])
+        
+        for j, answer in enumerate(question_data['answers']):
+            answer_id = answer[0]
+            answer_text = answer[1]
+            is_correct = answer[2]
+            
+            if question_data['is_single_choice']:
+                radio_button = QRadioButton(answer_text)
+                radio_button.setStyleSheet("""
+                    QRadioButton {
+                        font-size: 12px;
+                        color: #333;
+                        spacing: 5px;
+                        padding: 8px;
+                        margin: 2px;
+                        background-color: #f8f9fa;
+                        border-radius: 3px;
+                    }
+                    QRadioButton:hover {
+                        background-color: #e8f4fc;
+                    }
+                    QRadioButton::indicator {
+                        width: 14px;
+                        height: 14px;
+                    }
+                """)
+                radio_button.answer_id = answer_id
+                radio_button.is_correct = is_correct
+                
+                if answer_id in saved_answers:
+                    radio_button.setChecked(True)
+                
+                group_layout.addWidget(radio_button)
+                self.answer_widgets.append(radio_button)
+            else:
+                checkbox = QCheckBox(answer_text)
+                checkbox.setStyleSheet("""
+                    QCheckBox {
+                        font-size: 12px;
+                        color: #333;
+                        spacing: 10px;
+                        padding: 8px;
+                        margin: 2px;
+                        background-color: #f8f9fa;
+                        border-radius: 3px;
+                    }
+                    QCheckBox:hover {
+                        background-color: #e8f4fc;
+                    }
+                    QCheckBox::indicator {
+                        width: 18px;
+                        height: 18px;
+                    }
+                """)
+                checkbox.answer_id = answer_id
+                checkbox.is_correct = is_correct
+                
+                if answer_id in saved_answers:
+                    checkbox.setChecked(True)
+                
+                group_layout.addWidget(checkbox)
+                self.answer_widgets.append(checkbox)
+        
+        question_group.setLayout(group_layout)
+        self.question_layout.addWidget(question_group)
+        
+        self.update_progress()
+        
+        self.update_navigation_buttons()
+
+    def save_current_answers(self): # сохранение ответов
+        if self.current_question >= len(self.questions_data):
+            return
+        
+        question_data = self.questions_data[self.current_question]
+        question_id = question_data['question_id']
+        
+        self.answers[question_id] = []
+        
+        for widget in self.answer_widgets:
+            if isinstance(widget, QRadioButton) and widget.isChecked():
+                self.answers[question_id].append(widget.answer_id)
+                break
+            elif isinstance(widget, QCheckBox) and widget.isChecked():
+                self.answers[question_id].append(widget.answer_id)
+
+    def show_previous_question(self): # предыдущий вопрос
+        if self.current_question > 0:
+            self.save_current_answers()
+            
+            self.current_question -= 1
+            self.show_current_question()
+
+    def show_next_question(self): # следующий вопрос
+        if self.current_question < len(self.questions_data) - 1:
+            self.save_current_answers()
+            
+            self.current_question += 1
+            self.show_current_question()
+
+    def update_progress(self):
+        total = len(self.questions_data)
+        current = self.current_question + 1
+        self.progress_label.setText(f"Вопрос {current} из {total}")
+
+    def update_navigation_buttons(self):
+        # включение/выключение кнопки предыдущего вопроса
+        self.prev_button.setEnabled(self.current_question > 0) 
+        
+        # включение/выключение кнопки следующего вопроса
+        if self.current_question < len(self.questions_data) - 1:
+            self.next_button.setText("Следующий")
+            self.next_button.setEnabled(True)
+        else:
+            self.next_button.setText("Следующий")
+            self.next_button.setEnabled(False)
+
+    def cancel_test(self): # выход из теста
+        self.save_current_answers()
+        
+        answered_count = sum(1 for answers in self.answers.values() if answers)
+        total_questions = len(self.questions_data)
+        
+        reply = QMessageBox(
+            QMessageBox.Warning,
+            "Выход",
+            f"Вы хотите выйти из теста?\n\n"
+            f"Отвечено вопросов: {answered_count} из {total_questions}\n"
+            f"Все неотвеченные вопросы будут засчитаны как 0 баллов.\n\n",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        yes_button = reply.button(QMessageBox.Yes)
+        no_button = reply.button(QMessageBox.No)
+        if yes_button:
+            yes_button.setText("Да")
+        if no_button:
+            no_button.setText("Нет")
+        reply.setDefaultButton(QMessageBox.No)
+        
+        if reply.exec_() == QMessageBox.Yes:
+            self.save_partial_test_results()
+            self.close()
+
+    def save_partial_test_results(self):
+        try:
+            cursor = conn.cursor()
+            
+            total_questions = len(self.questions_data)
+            correct_answers = 0
+            
+            for question_data in self.questions_data:
+                question_id = question_data['question_id']
+                selected_answers = self.answers.get(question_id, [])
+                
+                if not selected_answers:
+                    continue
+                
+                if question_data['is_single_choice']:
+                    if len(selected_answers) == 1:
+                        selected_id = selected_answers[0]
+                        for answer in question_data['answers']:
+                            if answer[0] == selected_id and answer[2] == 1:
+                                correct_answers += 1
+                                break
+                else:
+                    if selected_answers:
+                        correct_selected = 0
+                        incorrect_selected = 0
+                        
+                        for answer in question_data['answers']:
+                            answer_id = answer[0]
+                            is_correct = answer[2]
+                            
+                            if is_correct and answer_id in selected_answers:
+                                correct_selected += 1
+                            elif not is_correct and answer_id in selected_answers:
+                                incorrect_selected += 1
+                        
+                        if correct_selected == question_data['correct_count'] and incorrect_selected == 0:
+                            correct_answers += 1
+            
+            if total_questions > 0:
+                percentage = (correct_answers / total_questions) * 100
+                percentage = max(0.0, min(100.0, percentage))
+                
+                if percentage >= 90:
+                    grade = 5
+                elif percentage >= 80:
+                    grade = 4
+                elif percentage >= 50:
+                    grade = 3
+                else:
+                    grade = 2
+            else:
+                percentage = 0
+                grade = 0
+            
+            percentage = round(percentage, 2)
+            grade = round(grade, 2)
+            
+            if percentage > 99.99:
+                percentage = 100
+            
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id_attempt FROM solved_tests 
+                WHERE id_user = ? AND id_test = ?
+            """, (self.user_id, self.test_id))
+            
+            existing_attempt = cursor.fetchone()
+            
+            if existing_attempt:
+                cursor.execute("""
+                    UPDATE solved_tests 
+                    SET grade = ?, grade_percent = ? 
+                    WHERE id_attempt = ?
+                """, (grade, percentage, existing_attempt[0]))
+                action = "обновлены"
+            else:
+                cursor.execute("""
+                    INSERT INTO solved_tests (id_user, id_test, grade, grade_percent)
+                    VALUES (?, ?, ?, ?)
+                """, (self.user_id, self.test_id, grade, percentage))
+                action = "сохранены"
+            
+            conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(
+                self,
+                "Тест завершен",
+                f"Результаты теста: {action}\n\n"
+                f"Правильных ответов: {correct_answers} из {total_questions}\n"
+                f"Процент выполнения: {percentage:.1f}%\n"
+                f"Оценка: {grade}"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Ошибка сохранения",
+                f"Не удалось сохранить результаты теста: {str(e)}"
+            )
+    
+    def submit_test(self): # отправка теста
+        self.save_current_answers()
+        
+        unanswered_questions = []
+        for i, question_data in enumerate(self.questions_data):
+            question_id = question_data['question_id']
+            if not self.answers.get(question_id):
+                unanswered_questions.append(i + 1)
+        
+        if unanswered_questions:
+            if len(unanswered_questions) > 5:
+                questions_text = f"{len(unanswered_questions)} вопросов"
+            else:
+                questions_text = ", ".join(map(str, unanswered_questions))
+            
+            reply = QMessageBox(
+                QMessageBox.Question,
+                "Предупреждение",
+                f"Следующие вопросы не имеют ответа: {questions_text}\n\n"
+                f"Вы уверены, что хотите завершить тест?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            yes_button = reply.button(QMessageBox.Yes)
+            no_button = reply.button(QMessageBox.No)
+            if yes_button:
+                yes_button.setText("Да")
+            if no_button:
+                no_button.setText("Нет")
+            reply.setDefaultButton(QMessageBox.No)
+            
+            if reply.exec_() == QMessageBox.No:
+                self.current_question = unanswered_questions[0] - 1
+                self.show_current_question()
+                return
+        
+        total_questions = len(self.questions_data)
+        correct_answers = 0
+        
+        for question_data in self.questions_data:
+            question_id = question_data['question_id']
+            selected_answers = self.answers.get(question_id, [])
+            
+            if question_data['is_single_choice']:
+                if len(selected_answers) == 1:
+                    selected_id = selected_answers[0]
+                    for answer in question_data['answers']:
+                        if answer[0] == selected_id and answer[2] == 1:
+                            correct_answers += 1
+                            break
+            else:
+                if selected_answers:
+                    correct_selected = 0
+                    incorrect_selected = 0
+                    
+                    for answer in question_data['answers']:
+                        answer_id = answer[0]
+                        is_correct = answer[2]
+                        
+                        if is_correct and answer_id in selected_answers:
+                            correct_selected += 1
+                        elif not is_correct and answer_id in selected_answers:
+                            incorrect_selected += 1
+                    
+                    if correct_selected == question_data['correct_count'] and incorrect_selected == 0:
+                        correct_answers += 1
+            
+        if total_questions > 0: # оценка
+            percentage = (correct_answers / total_questions) * 100
+            percentage = max(0.0, min(100.0, percentage))
+            
+            if percentage >= 90:
+                grade = 5
+            elif percentage >= 80:
+                grade = 4
+            elif percentage >= 50:
+                grade = 3
+            else:
+                grade = 2
+        else:
+            percentage = 0
+            grade = 0
+
+        percentage = round(percentage, 2)
+        grade = round(grade, 2)
+        
+        if grade > 9.99:
+            grade = 9.99
+        
+        if percentage > 99.99:
+            percentage = 100
+        
+        # сохранение итогов
+        try:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id_attempt FROM solved_tests 
+                WHERE id_user = ? AND id_test = ?
+            """, (self.user_id, self.test_id))
+            
+            existing_attempt = cursor.fetchone()
+            
+            if existing_attempt:
+                cursor.execute("""
+                    UPDATE solved_tests 
+                    SET grade = ?, grade_percent = ? 
+                    WHERE id_attempt = ?
+                """, (grade, percentage, existing_attempt[0]))
+                action = "обновлены"
+            else:
+                cursor.execute("""
+                    INSERT INTO solved_tests (id_user, id_test, grade, grade_percent)
+                    VALUES (?, ?, ?, ?)
+                """, (self.user_id, self.test_id, grade, percentage))
+                action = "сохранены"
+            
+            conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(
+                self,
+                "Тест завершен",
+                f"Результаты теста: {action}\n\n"
+                f"Правильных ответов: {correct_answers} из {total_questions}\n"
+                f"Процент выполнения: {percentage:.1f}%\n"
+                f"Оценка: {grade}"
+            )
+            
+            self.close()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось сохранить результаты теста: {str(e)}"
+            )
 
 
 class MainMenuTeacher(QMainWindow):
@@ -1004,7 +1781,6 @@ class MainMenuTeacher(QMainWindow):
                 color: white;
                 border-radius: 5px;
                 font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -1146,6 +1922,7 @@ class TestConstructor(QMainWindow):
         self.deadline_date.setStyleSheet("""
             border-radius: 5px;
             border: 1px solid #ccc;
+            color: #333;
             padding: 5px;
             font-family: Roboto;
         """)
@@ -1302,10 +2079,10 @@ class TestConstructor(QMainWindow):
                 color: white;
                 border: none;
                 border-radius: 5px;
-                padding: 12px 20px;
+                padding: 10px;
+                font-size: 14px;
                 font-family: Roboto;
                 font-weight: bold;
-                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -1323,10 +2100,10 @@ class TestConstructor(QMainWindow):
                 color: white;
                 border: none;
                 border-radius: 5px;
-                padding: 12px 20px;
+                padding: 10px;
+                font-size: 14px;
                 font-family: Roboto;
                 font-weight: bold;
-                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -1343,6 +2120,82 @@ class TestConstructor(QMainWindow):
         right_layout.addStretch(1)
 
         self.load_groups_from_db()
+
+    def check_question_exists(self, question_text, answers_data): # проверка на доабвленный вопрос
+        try:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT id_question 
+                FROM test_question 
+                WHERE text = ?
+            """, (question_text,))
+            
+            existing_question = cursor.fetchone()
+            
+            if not existing_question:
+                cursor.close()
+                return None
+            
+            question_id = existing_question[0]
+            
+            cursor.execute("""
+                SELECT answer, is_true 
+                FROM test_answer 
+                WHERE id_question = ?
+                ORDER BY id_answer
+            """, (question_id,))
+            
+            db_answers = cursor.fetchall()
+            
+            if len(db_answers) != len(answers_data):
+                cursor.close()
+                return None
+            
+            all_match = True
+            for i, answer in enumerate(answers_data):
+                db_answer_text = db_answers[i][0]
+                db_is_correct = bool(db_answers[i][1])
+                
+                if (answer['text'] != db_answer_text or 
+                    answer['is_correct'] != db_is_correct):
+                    all_match = False
+                    break
+            
+            cursor.close()
+            
+            return question_id if all_match else None
+            
+        except Exception as e:
+            print(f"Ошибка при проверке существования вопроса: {str(e)}")
+            return None
+        
+    def is_question_in_test_list(self, question_text, answers_data): # проверка наличия вопроса в списке
+        for i in range(self.questions_list.count()):
+            item = self.questions_list.item(i)
+            item_data = item.data(Qt.UserRole)
+            
+            if not item_data:
+                continue
+            
+            if item_data['question_text'] != question_text:
+                continue
+            
+            item_answers = item_data['answers']
+            if len(item_answers) != len(answers_data):
+                continue
+            
+            all_match = True
+            for j in range(len(answers_data)):
+                if (item_answers[j]['text'] != answers_data[j]['text'] or 
+                    item_answers[j]['is_correct'] != answers_data[j]['is_correct']):
+                    all_match = False
+                    break
+            
+            if all_match:
+                return True
+        
+        return False
 
     def save_test(self):
         if not self.validate_test_data():
@@ -1392,6 +2245,16 @@ class TestConstructor(QMainWindow):
                     
                     if existing_question:
                         question_id = existing_question[0]
+
+                        for answer in item_data['answers']:
+                            cursor.execute("""
+                                SELECT id_answer FROM test_answer 
+                                WHERE id_question = ? AND answer = ? AND is_true = ?
+                            """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
+                            
+                            answer_row = cursor.fetchone()
+                            if answer_row:
+                                answer_id = answer_row[0]
                     else:
                         cursor.execute("""
                             INSERT INTO test_question (text) VALUES (?)
@@ -1416,17 +2279,26 @@ class TestConstructor(QMainWindow):
                             
                             cursor.execute("""
                                 SELECT id_que_ans FROM question_answer 
-                                WHERE id_question = ? AND id_answer = ?
-                            """, (question_id, answer_id))
-                            
-                            if not cursor.fetchone():
+                                WHERE id_question = ? AND id_answer = ? 
+                            """, (question_id, answer_id)) ## перепроверить ---------------------------------------------------------------------------------
+
+                            que_ans_row = cursor.fetchone()
+                            if que_ans_row:
+                                que_ans_id = que_ans_row[0]
+                            else:
                                 cursor.execute("""
                                     INSERT INTO question_answer (id_question, id_answer)
                                     VALUES (?, ?)
                                 """, (question_id, answer_id))
                                 
                                 que_ans_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
-                                
+                            
+                            cursor.execute("""
+                                SELECT id_content FROM test_content 
+                                WHERE id_test = ? AND id_que_ans = ?
+                            """, (test_id, que_ans_id))
+                            
+                            if not cursor.fetchone():
                                 cursor.execute("""
                                     INSERT INTO test_content (id_test, id_que_ans)
                                     VALUES (?, ?)
@@ -1504,12 +2376,12 @@ class TestConstructor(QMainWindow):
             cursor = conn.cursor()
             
             query = ("""
-            SELECT DISTINCT
-                nc.id_name_class,
-                nc.num,
-                nc.letter
-            FROM name_class nc
-            ORDER BY nc.num, nc.letter
+                SELECT DISTINCT
+                    nc.id_name_class,
+                    nc.num,
+                    nc.letter
+                FROM name_class nc
+                ORDER BY nc.num, nc.letter
             """)
         
             cursor.execute(query)
@@ -1617,6 +2489,14 @@ class TestConstructor(QMainWindow):
         has_correct_answer = any(answer['is_correct'] for answer in answers_data)
         if not has_correct_answer:
             QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа")
+            return
+        
+        if self.is_question_in_test_list(question_text, answers_data):
+            QMessageBox.warning(
+                self,
+                "Вопрос уже добавлен",
+                "Такой вопрос уже есть в тесте."
+            )
             return
 
         question_number = self.questions_list.count() + 1
@@ -1911,7 +2791,6 @@ class MainMenuAdmin(QMainWindow):
                 color: white;
                 border-radius: 5px;
                 font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
@@ -2175,7 +3054,6 @@ class MainMenuAdmin(QMainWindow):
             if reply == QMessageBox.Yes:
                 try:
                     cursor = conn.cursor()
-                    # Обновляем по логину
                     cursor.execute("""
                         UPDATE users
                         SET is_active = 0
@@ -2195,10 +3073,11 @@ class AddEditUserDialog(QDialog):
         self.user_id = user_id
         self.login = login
         self.is_edit_mode = login is not None or user_id is not None
-        
-        self.setWindowTitle("Редактировать пользователя" if self.is_edit_mode else "Добавить пользователя")
-        self.setFixedSize(500, 450)
+
+        self.setWindowTitle("Редактирование пользователя" if self.is_edit_mode else "Добавление пользователя")
+        self.setFixedSize(350, 400)
         self.setModal(True)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -2207,71 +3086,94 @@ class AddEditUserDialog(QDialog):
         form_layout.setSpacing(15)
         
         # фамилия
+        surname_label = QLabel("Фамилия:")
+        surname_label.setFont(QFont("Roboto", 10))
+
         self.surname_edit = QLineEdit()
+        self.surname_edit.setFixedSize(250, 35)
+        self.surname_edit.setFont(QFont("Roboto", 10))
         self.surname_edit.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
-            padding: 8px;
-            font-family: Roboto;
+            border: 2px solid #3498db;
+            padding: 5px;
         """)
-        form_layout.addRow("Фамилия:", self.surname_edit)
+        form_layout.addRow(surname_label, self.surname_edit)
         
         # имя
+        name_label = QLabel("Имя:")
+        name_label.setFont(QFont("Roboto", 10))
+
         self.name_edit = QLineEdit()
+        self.name_edit.setFixedSize(250, 35)
+        self.name_edit.setFont(QFont("Roboto", 10))
         self.name_edit.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
-            padding: 8px;
-            font-family: Roboto;
+            border: 2px solid #3498db;
+            padding: 5px;
         """)
-        form_layout.addRow("Имя:", self.name_edit)
+        form_layout.addRow(name_label, self.name_edit)
         
         # отчество
+        patronymic_label = QLabel("Отчество:")
+        patronymic_label.setFont(QFont("Roboto", 10))
+
         self.patronymic_edit = QLineEdit()
+        self.patronymic_edit.setFixedSize(250, 35)
+        self.patronymic_edit.setFont(QFont("Roboto", 10))
         self.patronymic_edit.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
-            padding: 8px;
-            font-family: Roboto;
+            border: 2px solid #3498db;
+            padding: 5px;
         """)
-        form_layout.addRow("Отчество:", self.patronymic_edit)
+        form_layout.addRow(patronymic_label, self.patronymic_edit)
         
         # логин
+        login_label = QLabel("Логин:")
+        login_label.setFont(QFont("Roboto", 10))
+
         self.login_edit = QLineEdit()
+        self.login_edit.setFixedSize(250, 35)
+        self.login_edit.setFont(QFont("Roboto", 10))
         self.login_edit.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
-            padding: 8px;
-            font-family: Roboto;
+            border: 2px solid #3498db;
+            padding: 5px;
         """)
-        form_layout.addRow("Логин:", self.login_edit)
+        form_layout.addRow(login_label, self.login_edit)
         
         # пароль
+        password_label = QLabel("Пароль:")
+        password_label.setFont(QFont("Roboto", 10))
+
         self.password_edit = QLineEdit()
+        self.password_edit.setFixedSize(250, 35)
+        self.password_edit.setFont(QFont("Roboto", 10))
         self.password_edit.setEchoMode(QLineEdit.Password)
         self.password_edit.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
-            padding: 8px;
-            font-family: Roboto;
+            border: 2px solid #3498db;
+            padding: 5px;
         """)
-        if not self.is_edit_mode:
-            form_layout.addRow("Пароль:", self.password_edit)
+        form_layout.addRow(password_label, self.password_edit)
         
         # роль
+        role_label = QLabel("Роль:")
+        role_label.setFont(QFont("Roboto", 10))
+
         self.role_combo = QComboBox()
+        self.role_combo.setFixedSize(250, 35)
+        self.role_combo.setFont(QFont("Roboto", 10))
         self.role_combo.setStyleSheet("""
             border-radius: 5px;
-            border: 1px solid #ccc;
+            border: 2px solid #3498db;
             color: #333;
             padding: 5px;
-            font-family: Roboto;
-            min-width: 100px;
         """)
         self.load_roles()
-        form_layout.addRow("Роль:", self.role_combo)
+        form_layout.addRow(role_label, self.role_combo)
         
         self.active_checkbox = QCheckBox("Активный пользователь")
+        self.active_checkbox.setFont(QFont("Roboto", 10))
         self.active_checkbox.setChecked(True)
         self.active_checkbox.setStyleSheet("font-family: Roboto;")
         form_layout.addRow("", self.active_checkbox)
@@ -2281,6 +3183,7 @@ class AddEditUserDialog(QDialog):
         buttons_layout = QHBoxLayout()
         
         self.save_button = QPushButton("Сохранить")
+        self.save_button.setFixedSize(200, 40)
         self.save_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -2288,7 +3191,7 @@ class AddEditUserDialog(QDialog):
                 border: none;
                 border-radius: 5px;
                 padding: 10px;
-                font-size: 12px;
+                font-size: 14px;
                 font-family: Roboto;
                 font-weight: bold;
             }
@@ -2408,6 +3311,8 @@ class AddEditUserDialog(QDialog):
             errors.append("Введите имя")
         if not self.surname_edit.text().strip():
             errors.append("Введите фамилию")
+        if not self.patronymic_edit.text().strip():
+            errors.append("Введите отчество")
         if not self.login_edit.text().strip():
             errors.append("Введите логин")
         
