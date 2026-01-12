@@ -77,6 +77,52 @@ class MainMenuTeacher(QMainWindow):
 
         group_button_layout.addStretch(1)
 
+        # кнопка посещаемости
+        self.button_attendance = QPushButton("Посещаемость")
+        self.button_attendance.setFixedSize(200, 40)
+        self.button_attendance.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        # self.button_attendance.clicked.connect(self.show_attendance)
+        group_button_layout.addWidget(self.button_attendance, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка задания
+        self.button_homework = QPushButton("Задания")
+        self.button_homework.setFixedSize(200, 40)
+        self.button_homework.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_homework.clicked.connect(self.show_homework)
+        group_button_layout.addWidget(self.button_homework, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
         # кнопка тесты
         self.button_tests = QPushButton("Тесты")
         self.button_tests.setFixedSize(200, 40)
@@ -98,11 +144,643 @@ class MainMenuTeacher(QMainWindow):
         """)
         self.button_tests.clicked.connect(self.test_const_open)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
 
-        group_button_layout.addStretch(1)
+        # кнопка успеваемость
+        self.button_stats = QPushButton("Успеваемость")
+        self.button_stats.setFixedSize(200, 40)
+        self.button_stats.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        # self.button_stats.clicked.connect(self.show_grades)
+        group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка расписания
+        self.button_schedule = QPushButton("Расписание")
+        self.button_schedule.setFixedSize(200, 40)
+        self.button_schedule.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_schedule.clicked.connect(self.show_schedule)
+        group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
+
+        group_button_layout.addStretch(2)
+        main_layout.addStretch(1)
+
+        self.schedule()
+        self.homework()
+        self.show_schedule()
+
+    def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
+        for i in reversed(range(self.content_layout_v.count())):
+            widget = self.content_layout_v.itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
+
+    def show_schedule(self): # отображение расписания
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.schedule_widget)
+
+        self.load_schedule()
+
+    def schedule(self): # элемент расписания (таблица, список, как душе угодно)
+        self.schedule_widget = QWidget()
+        schedule_layout = QVBoxLayout()
+        self.schedule_widget.setLayout(schedule_layout)
+
+        schedule_label = QLabel("Занятия на текущей неделе:")
+        schedule_label.setAlignment(Qt.AlignLeft)
+        schedule_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        schedule_layout.addWidget(schedule_label)
+        # content_layout_v.addStretch(1)
+
+        # окно для занятий
+        self.schedule_list = QListWidget()
+        self.schedule_list.setFixedSize(600, 450)
+        self.schedule_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        schedule_layout.addWidget(self.schedule_list)
+
+        self.load_schedule()
+
+    def load_schedule(self): # загрузка расписания
+        try:
+            cursor = self.conn.cursor()                          # переписать запрос для получения расписания
+
+            query = ("""
+                select 
+                    s.day_of_week, sub.subject_name, nc.num, nc.letter, cab.num
+                from schedule s
+                inner join class c ON s.id_class = c.id_class
+                inner join name_class nc ON c.id_name_class = nc.id_name_class
+                inner join subject sub ON s.id_subject = sub.id_subject
+                inner join cabinet cab on cab.id_cabinet = s.id_cabinet
+                where s.id_user = ?
+                order by 
+                    case s.day_of_week
+                        when 'Понедельник' then 1
+                        when 'Вторник' then 2
+                        when 'Среда' then 3
+                        when 'Четверг' then 4
+                        when 'Пятница' then 5
+                        when 'Суббота' then 6
+                        when 'Воскресенье' then 7
+                        else 8
+                    end,
+                    s.lesson_num
+            """)
+
+            cursor.execute(query, (self.id_user))
+            schedule_data = cursor.fetchall()
+
+            self.schedule_list.clear()
+
+            if schedule_data:
+                current_day = None
+                
+                for lesson in schedule_data:
+                    day_of_week = lesson[0]
+                    subject_name = lesson[1]
+                    class_num = lesson[2]
+                    class_letter = lesson[3]
+                    cabinet = lesson[4]
+
+                    class_group = f"{class_num}{class_letter}"
+                    
+                    lesson_text = f"{subject_name}, группа: {class_group}, {cabinet} кабинет"
+                    
+                    if day_of_week != current_day:
+                        current_day = day_of_week
+                        day_header = QListWidgetItem(f"{day_of_week}:")
+                        day_header.setFlags(Qt.NoItemFlags)
+                        day_header.setFont(QFont("Roboto", 10, QFont.Bold))
+                        day_header.setForeground(QColor("#2c3e50"))
+                        self.schedule_list.addItem(day_header)
+                    
+                    lesson_item = QListWidgetItem(f"  {lesson_text}")
+                    lesson_item.setFlags(Qt.NoItemFlags)
+                    self.schedule_list.addItem(lesson_item)
+
+            else:
+                no_schedule_item = QListWidgetItem("Расписание на текущую неделю отсутствует")
+                no_schedule_item.setTextAlignment(Qt.AlignCenter)
+                no_schedule_item.setFlags(Qt.NoItemFlags)
+                no_schedule_item.setForeground(QColor("#7f8c8d"))
+                self.schedule_list.addItem(no_schedule_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке расписания: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.schedule_list.addItem(error_item)
+
+    def show_homework(self): # отображение дз
+        self.clear_content_layout()
+        self.load_groups_for_homework()
+
+        self.content_layout_v.addWidget(self.homework_widget)
+
+        self.load_homework()
+
+    def homework(self): # элементы для домашнего задания (таблица)
+        self.homework_widget = QWidget()
+        homework_layout = QVBoxLayout()
+        self.homework_widget.setLayout(homework_layout)
+
+        homework_label = QLabel("Домашние задания:")
+        homework_label.setAlignment(Qt.AlignLeft)
+        homework_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        homework_layout.addWidget(homework_label)
+
+        control_layout = QHBoxLayout() # область для элементов группы и обновления таблицы
+        
+        # выбор группы
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        control_layout.addWidget(group_label)
+        
+        self.group_combo = QComboBox()
+        self.group_combo.addItems(["Выберите группу"])
+        self.group_combo.setFixedSize(130, 28)
+        self.group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.group_combo.currentIndexChanged.connect(self.load_homework)
+        control_layout.addWidget(self.group_combo)
+        
+        control_layout.addStretch()
+        
+        # кнопка обновить
+        refresh_button = QPushButton("Обновить")
+        refresh_button.setFixedSize(120, 35)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        refresh_button.clicked.connect(self.load_homework)
+        control_layout.addWidget(refresh_button)
+        
+        homework_layout.addLayout(control_layout)
+
+        # таблица для дз
+        self.homework_table = QListWidget()
+        self.homework_table.setFixedSize(600, 304)
+        self.homework_table.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 10px;
+                font-family: Roboto;
+                outline: 0;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+            QListWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }                        
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+            QListWidget::item:last {
+                border-bottom: none;
+            }
+        """)
+        self.homework_table.itemSelectionChanged.connect(self.on_homework_selected)
+        homework_layout.addWidget(self.homework_table)
+
+        exercise_layout = QHBoxLayout() # область для параметров задания (текст, срок выполнения)
+        homework_layout.addLayout(exercise_layout)
+        text_layout = QVBoxLayout() # область для текста задания
+        exercise_layout.addLayout(text_layout)
+        date_layout = QVBoxLayout() # область для срока выполнения
+        exercise_layout.addLayout(date_layout)
+
+        # текст задания
+        question_text_label = QLabel("Текст задания:")
+        question_text_label.setStyleSheet("font-family: Roboto; color: #333;")
+        text_layout.addWidget(question_text_label, alignment=Qt.AlignLeft)
+
+        self.question_text_edit = QTextEdit()
+        self.question_text_edit.setFixedSize(280, 80)
+        self.question_text_edit.setPlaceholderText("Введите текст задания...")
+        self.question_text_edit.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.question_text_edit.textChanged.connect(self.validate_homework_text)
+        text_layout.addWidget(self.question_text_edit, alignment=Qt.AlignLeft)
+
+        # счетчик символов
+        self.char_count_label = QLabel("0/150")
+        self.char_count_label.setStyleSheet("font-family: Roboto; color: #333; font-size: 11px;")
+        date_layout.addWidget(self.char_count_label, alignment=Qt.AlignLeft)
+        
+        # выбор срока выполнения
+        date_label = QLabel("Срок выполнения:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.deadline_date = QDateEdit()
+        self.deadline_date.setFixedSize(100, 30)
+        self.deadline_date.setCalendarPopup(True)
+        self.deadline_date.setDate(QDate.currentDate())
+        self.deadline_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        date_layout.addStretch(1)
+        date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
+        date_layout.addWidget(self.deadline_date, alignment=Qt.AlignLeft)
+
+        add_del_button = QVBoxLayout() # область для кнопок добавления/удаления
+        exercise_layout.addLayout(add_del_button)
+        add_del_button.addStretch(1)
+
+        self.del_button = QPushButton("Удалить задание")
+        self.del_button.setFixedSize(180, 35)
+        self.del_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.del_button.clicked.connect(self.delete_homework)
+        self.del_button.setEnabled(False)
+        add_del_button.addWidget(self.del_button)
+
+        self.add_button = QPushButton("Добавить задание")
+        self.add_button.setFixedSize(180, 35)
+        self.add_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.add_button.clicked.connect(self.add_homework)
+        add_del_button.addWidget(self.add_button)
+
+        self.selected_homework_id = None
+
+    def load_homework(self): # загрузка заданий
+        try:
+            selected_group_id = self.group_combo.currentData()
+        
+            if not selected_group_id:
+                self.homework_table.clear()
+                no_group_item = QListWidgetItem("Выберите группу для просмотра заданий")
+                no_group_item.setTextAlignment(Qt.AlignCenter)
+                no_group_item.setFlags(Qt.NoItemFlags)
+                no_group_item.setForeground(QColor("#7f8c8d"))
+                self.homework_table.addItem(no_group_item)
+                self.selected_homework_id = None
+                self.del_button.setEnabled(False)
+                return
+            
+            cursor = self.conn.cursor()
+
+            query = ("""
+                select 
+                    e.id_exercise,
+                    s.subject_name,
+                    e.exercise,
+                    e.upload,
+                    e.deadline
+                from exercise e
+                inner join subject s on s.id_subject = e.id_subject
+                where e.id_class = ?
+                order by e.deadline desc
+            """)
+
+            cursor.execute(query, (selected_group_id))
+            homework_data = cursor.fetchall()
+
+            self.homework_table.clear()
+
+            if homework_data: # комбинирование полученной информации в одну ячейку в списке
+                current_date = None
+
+                for record in homework_data:
+                    id_exercise = record[0]
+                    subject_name = record[1]
+                    exercise = record[2]
+                    upload = record[3]
+                    deadline = record[4]
+
+                    formatted_upload = upload.strftime("%d.%m.%Y")
+                    formatted_deadline = deadline.strftime("%d.%m.%Y")
+
+                    date_text = f"Задано: {formatted_upload} \nСрок сдачи: {formatted_deadline}"
+
+                    item_text = (f"{subject_name}\n"
+                                f"{date_text}\n"
+                                f"{exercise}")
+                    list_item = QListWidgetItem(item_text)
+
+                    list_item.setData(Qt.UserRole, {
+                        'id': id_exercise,
+                        'subject_name': subject_name,
+                        'exercise': exercise,
+                        'upload': upload,
+                        'deadline': deadline
+                    })
+                    
+                    self.homework_table.addItem(list_item)
+
+            else:
+                no_homework_item = QListWidgetItem("Данные о заданиях отсутствуют")
+                no_homework_item.setTextAlignment(Qt.AlignCenter)
+                no_homework_item.setFlags(Qt.NoItemFlags)
+                no_homework_item.setForeground(QColor("#7f8c8d"))
+                self.homework_table.addItem(no_homework_item)
+                
+            cursor.close()
+
+        except Exception as e:
+            error_item = QListWidgetItem(f"Ошибка при загрузке домашних заданий: {str(e)}")
+            error_item.setFlags(Qt.NoItemFlags)
+            error_item.setForeground(QColor("#e74c3c"))
+            self.homework_table.addItem(error_item)
+
+    def on_homework_selected(self): # выбор задания в списке для удаления
+        selected_items = self.homework_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data:
+                self.selected_homework_id = item_data['id']
+                self.del_button.setEnabled(True)
+                
+                self.question_text_edit.setPlainText(item_data['exercise'])
+                self.deadline_date.setDate(QDate(item_data['deadline'].year, 
+                                            item_data['deadline'].month, 
+                                            item_data['deadline'].day))
+                self.validate_homework_text()
+            else:
+                self.selected_homework_id = None
+                self.del_button.setEnabled(False)
+                self.question_text_edit.clear()
+                self.validate_homework_text()
+        else:
+            self.selected_homework_id = None
+            self.del_button.setEnabled(False)
+            self.question_text_edit.clear()
+            self.validate_homework_text()
+
+    def add_homework(self): # добавление домашнего задания
+        selected_group_id = self.group_combo.currentData()
+        if not selected_group_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу для добавления задания")
+            return
+        
+        exercise_text = self.question_text_edit.toPlainText().strip()
+        
+        if not exercise_text:
+            QMessageBox.warning(self, "Ошибка", "Введите текст задания")
+            return
+        
+        if len(exercise_text) > 150:
+            QMessageBox.warning(self, "Ошибка", "Текст задания не должен превышать 150 символов")
+            return
+        
+        deadline_date = self.deadline_date.date()
+        deadline_date_str = deadline_date.toString("yyyy-MM-dd")
+        
+        if deadline_date < QDate.currentDate():
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение",
+                "Срок выполнения уже прошел. Вы уверены, что хотите добавить задание?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            subject_query = """
+                select distinct s.id_subject
+                from schedule sch
+                inner join subject s on sch.id_subject = s.id_subject
+                where sch.id_user = ? and sch.id_class = ?
+            """
+            cursor.execute(subject_query, (self.id_user, selected_group_id))
+            subject_data = cursor.fetchone()
+            
+            if not subject_data:
+                QMessageBox.warning(self, "Ошибка", "Для выбранной группы не найден предмет")
+                cursor.close()
+                return
+            
+            subject_id = subject_data[0]
+            
+            insert_query = """
+                insert into exercise (id_subject, id_class, exercise, upload, deadline)
+                values (?, ?, ?, GETDATE(), ?)
+            """
+            
+            cursor.execute(insert_query, (subject_id, selected_group_id, exercise_text, deadline_date_str))
+            self.conn.commit()
+            
+            QMessageBox.information(self, "Успех", "Задание успешно добавлено")
+            
+            # очистка полей
+            self.question_text_edit.clear()
+            self.validate_homework_text()
+            self.load_homework()
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось добавить задание: {str(e)}")
+
+    def delete_homework(self): # удаление домашнего задания
+        if not self.selected_homework_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите задание для удаления")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            "Вы уверены, что хотите удалить выбранное задание?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                cursor = self.conn.cursor()
+                
+                delete_query = "delete from exercise where id_exercise = ?"
+                cursor.execute(delete_query, (self.selected_homework_id,))
+                self.conn.commit()
+                
+                QMessageBox.information(self, "Успех", "Задание успешно удалено")
+                
+                # очистка полей
+                self.selected_homework_id = None
+                self.del_button.setEnabled(False)
+                self.question_text_edit.clear()
+                self.validate_homework_text()
+                self.load_homework()
+                
+                cursor.close()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить задание: {str(e)}")
+
+    def validate_homework_text(self): # проверка текста задания на кол-во символов
+        text = self.question_text_edit.toPlainText()
+        char_count = len(text)
+        
+        # обновление счетчика
+        self.char_count_label.setText(f"{char_count}/150")
+        
+        # активность кнопки в зависимости от символов
+        if text.strip() and char_count > 0:
+            self.add_button.setEnabled(True)
+        else:
+            self.add_button.setEnabled(False)
+
+    def load_groups_for_homework(self): # загрузка групп для списка
+        try:
+            cursor = self.conn.cursor()
+
+            query = """
+                select distinct
+                    nc.id_name_class,
+                    nc.num,
+                    nc.letter
+                from name_class nc
+                order by nc.num, nc.letter
+            """
+            
+            cursor.execute(query)
+            groups_data = cursor.fetchall()
+            
+            self.group_combo.clear()
+            
+            if groups_data:
+                self.group_combo.addItem("Выберите группу", None)
+                for group in groups_data:
+                    class_id = group[0]
+                    class_num = group[1]
+                    class_letter = group[2]
+                    group_name = f"{class_num}{class_letter}"
+                    self.group_combo.addItem(group_name, class_id)
+            else:
+                self.group_combo.addItem("Нет доступных групп")
+                self.group_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить группы: {str(e)}")
+            self.group_combo.clear()
+            self.group_combo.addItem("Ошибка загрузки")
+            self.group_combo.setEnabled(False)
 
     def test_const_open(self):
-        self.test_window = TestConstructor(self.id_user, self.fio)
+        self.test_window = TestConstructor(self.id_user, self.fio, self.conn)
         self.test_window.show()
 
     def logout(self): # выход из учетки
@@ -113,10 +791,11 @@ class MainMenuTeacher(QMainWindow):
 
 
 class TestConstructor(QMainWindow):
-    def __init__(self, id_user = None, fio = None):
+    def __init__(self, id_user = None, fio = None, conn = None):
         super().__init__()
         self.id_user = id_user
         self.fio = fio
+        self.conn = conn
 
         central_widget = QWidget()
 
@@ -399,9 +1078,9 @@ class TestConstructor(QMainWindow):
             cursor = self.conn.cursor()
             
             cursor.execute("""
-                SELECT id_question 
-                FROM test_question 
-                WHERE text = ?
+                select id_question 
+                from test_question 
+                where text = ?
             """, (question_text,))
             
             existing_question = cursor.fetchone()
@@ -413,10 +1092,10 @@ class TestConstructor(QMainWindow):
             question_id = existing_question[0]
             
             cursor.execute("""
-                SELECT answer, is_true 
-                FROM test_answer 
-                WHERE id_question = ?
-                ORDER BY id_answer
+                select answer, is_true 
+                from test_answer 
+                where id_question = ?
+                order by id_answer
             """, (question_id,))
             
             db_answers = cursor.fetchall()
@@ -480,7 +1159,7 @@ class TestConstructor(QMainWindow):
             test_name = self.test_name_input.text().strip()
             
             cursor.execute("""
-                SELECT id_name FROM test_name WHERE name = ?
+                select id_name from test_name where name = ?
             """, (test_name,))
             existing_name = cursor.fetchone()
 
@@ -488,9 +1167,9 @@ class TestConstructor(QMainWindow):
                 name_id = existing_name[0]
             else:
                 cursor.execute("""
-                    INSERT INTO test_name (name) VALUES (?)
+                    insert into test_name (name) values (?)
                 """, (test_name,))
-                name_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+                name_id = cursor.execute("select @@IDENTITY").fetchone()[0]
             
             group_id = self.get_selected_group_id()
         
@@ -498,11 +1177,11 @@ class TestConstructor(QMainWindow):
             upload_date = QDate.currentDate().toString("yyyy-MM-dd")
 
             cursor.execute("""
-                INSERT INTO test (id_name, id_name_class, upload, deadline)
-                VALUES (?, ?, ?, ?)
+                insert into test (id_name, id_name_class, upload, deadline)
+                values (?, ?, ?, ?)
             """, (name_id, group_id, upload_date, deadline_date))
             
-            test_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+            test_id = cursor.execute("select @@IDENTITY").fetchone()[0]
             
             for i in range(self.questions_list.count()):
                 item = self.questions_list.item(i)
@@ -512,7 +1191,7 @@ class TestConstructor(QMainWindow):
                     question_text = item_data['question_text']
                     
                     cursor.execute("""
-                        SELECT id_question FROM test_question WHERE text = ?
+                        select id_question from test_question where text = ?
                     """, (question_text,))
                     existing_question = cursor.fetchone()
                     
@@ -521,8 +1200,8 @@ class TestConstructor(QMainWindow):
 
                         for answer in item_data['answers']:
                             cursor.execute("""
-                                SELECT id_answer FROM test_answer 
-                                WHERE id_question = ? AND answer = ? AND is_true = ?
+                                select id_answer from test_answer 
+                                where id_question = ? and answer = ? and is_true = ?
                             """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
                             
                             answer_row = cursor.fetchone()
@@ -530,20 +1209,20 @@ class TestConstructor(QMainWindow):
                                 answer_id = answer_row[0]
                     else:
                         cursor.execute("""
-                            INSERT INTO test_question (text) VALUES (?)
+                            insert into test_question (text) values (?)
                         """, (question_text,))
-                        question_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+                        question_id = cursor.execute("select @@IDENTITY").fetchone()[0]
                         
                         for answer in item_data['answers']:
                             cursor.execute("""
-                                INSERT INTO test_answer (id_question, answer, is_true)
-                                VALUES (?, ?, ?)
+                                insert into test_answer (id_question, answer, is_true)
+                                values (?, ?, ?)
                             """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
                     
                     for answer in item_data['answers']:
                         cursor.execute("""
-                            SELECT id_answer FROM test_answer 
-                            WHERE id_question = ? AND answer = ? AND is_true = ?
+                            select id_answer from test_answer 
+                            where id_question = ? and answer = ? and is_true = ?
                         """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
                         
                         answer_row = cursor.fetchone()
@@ -551,8 +1230,8 @@ class TestConstructor(QMainWindow):
                             answer_id = answer_row[0]
                             
                             cursor.execute("""
-                                SELECT id_que_ans FROM question_answer 
-                                WHERE id_question = ? AND id_answer = ? 
+                                select id_que_ans from question_answer 
+                                where id_question = ? and id_answer = ? 
                             """, (question_id, answer_id)) ## перепроверить ---------------------------------------------------------------------------------
 
                             que_ans_row = cursor.fetchone()
@@ -560,21 +1239,21 @@ class TestConstructor(QMainWindow):
                                 que_ans_id = que_ans_row[0]
                             else:
                                 cursor.execute("""
-                                    INSERT INTO question_answer (id_question, id_answer)
-                                    VALUES (?, ?)
+                                    insert into question_answer (id_question, id_answer)
+                                    values (?, ?)
                                 """, (question_id, answer_id))
                                 
-                                que_ans_id = cursor.execute("SELECT @@IDENTITY").fetchone()[0]
+                                que_ans_id = cursor.execute("select @@IDENTITY").fetchone()[0]
                             
                             cursor.execute("""
-                                SELECT id_content FROM test_content 
-                                WHERE id_test = ? AND id_que_ans = ?
+                                select id_content from test_content 
+                                where id_test = ? and id_que_ans = ?
                             """, (test_id, que_ans_id))
                             
                             if not cursor.fetchone():
                                 cursor.execute("""
-                                    INSERT INTO test_content (id_test, id_que_ans)
-                                    VALUES (?, ?)
+                                    insert into test_content (id_test, id_que_ans)
+                                    values (?, ?)
                                 """, (test_id, que_ans_id))
         
             self.conn.commit()
@@ -649,12 +1328,12 @@ class TestConstructor(QMainWindow):
             cursor = self.conn.cursor()
             
             query = ("""
-                SELECT DISTINCT
+                select distinct
                     nc.id_name_class,
                     nc.num,
                     nc.letter
-                FROM name_class nc
-                ORDER BY nc.num, nc.letter
+                from name_class nc
+                order by nc.num, nc.letter
             """)
         
             cursor.execute(query)
@@ -712,7 +1391,7 @@ class TestConstructor(QMainWindow):
         self.questions_count_label.setText(f"Вопросов: {count}")
 
     def open_que_ans_db(self): # открытие окна для выбора вопросов из бд
-        dialog = QuestionAnswerFromDB(self)
+        dialog = QuestionAnswerFromDB(self, self.conn)
         if dialog.exec_() == QDialog.Accepted:
             question_details = dialog.get_selected_question_details()
 
@@ -809,9 +1488,10 @@ class TestConstructor(QMainWindow):
 
 
 class QuestionAnswerFromDB(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, conn=None):
         super().__init__(parent)
         self.selected_question_id = None
+        self.conn = conn
         self.setWindowTitle("Банк вопросов")
         self.setFixedSize(500, 400)
         self.setModal(True)
@@ -906,11 +1586,11 @@ class QuestionAnswerFromDB(QDialog):
                 select 
                     q.id_question,
                     q.text as question_text,
-                    STRING_AGG(a.answer + 
-                        CASE WHEN a.is_true = 1 THEN ' + ' ELSE ' - ' END, 
+                    string_agg(a.answer + 
+                        case when a.is_true = 1 then ' + ' else ' - ' end, 
                         ', ') as answers_list
                 from test_question q
-                left join test_answer a ON q.id_question = a.id_question
+                left join test_answer a on q.id_question = a.id_question
                 group by q.id_question, q.text
                 order by q.id_question
             """)
@@ -993,13 +1673,13 @@ class QuestionAnswerFromDB(QDialog):
             cursor = self.conn.cursor()
             
             query = ("""
-                SELECT 
+                select 
                     answer,
                     is_true,
                     id_answer
-                FROM test_answer
-                WHERE id_question = ?
-                ORDER BY id_answer
+                from test_answer
+                where id_question = ?
+                order by id_answer
             """)
             
             cursor.execute(query, (question_id,))

@@ -411,7 +411,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.tests_table.setFixedSize(400, 400)
         tests_layout.addWidget(self.tests_table)
-        self.tests_table.itemDoubleClicked.connect(self.open_test_window)
+        self.tests_table.itemDoubleClicked.connect(self.open_test_window) # двойное нажатие на тест открывает его
 
     def show_schedule(self): # отображение расписания
         self.clear_content_layout()
@@ -558,7 +558,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             self.attendance_table.clear()
 
-            if attendance_data:
+            if attendance_data: # комбинирование полученной информации в одну ячейку в списке
                 current_date = None
                 
                 for record in attendance_data:
@@ -647,7 +647,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             self.homework_table.clear()
 
-            if homework_data:
+            if homework_data: # комбинирование полученной информации в одну ячейку в списке
                 current_date = None
 
                 for record in homework_data:
@@ -715,7 +715,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             self.grades_table.clear()
 
-            if grades_data:
+            if grades_data: # комбинирование полученной информации в одну ячейку в списке
                 current_date = None
 
                 for record in grades_data:
@@ -793,7 +793,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             self.tests_table.clear()
 
-            if tests_data:
+            if tests_data: # комбинирование полученной информации в одну ячейку в списке
                 current_date = None
 
                 for record in tests_data:
@@ -853,7 +853,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             error_item.setForeground(QColor("#e74c3c"))
             self.tests_table.addItem(error_item)
 
-    def open_test_window(self, item):
+    def open_test_window(self, item): # открытие теста
         test_id = item.data(Qt.UserRole)
         
         if not test_id:
@@ -863,8 +863,8 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                SELECT COUNT(*) FROM solved_tests 
-                WHERE id_test = ? AND id_user = ?
+                select count(*) from solved_tests 
+                where id_test = ? and id_user = ?
             """, (test_id, self.id_user))
             
             result = cursor.fetchone()
@@ -887,10 +887,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     return
             
             cursor.execute("""
-                SELECT tn.name 
-                FROM test t
-                INNER JOIN test_name tn ON tn.id_name = t.id_name
-                WHERE t.id_test = ?
+                select tn.name 
+                from test t
+                inner join test_name tn on tn.id_name = t.id_name
+                where t.id_test = ?
             """, (test_id,))
             
             test_data = cursor.fetchone()
@@ -901,7 +901,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             QMessageBox.critical(self, "Ошибка", f"Ошибка при проверке теста: {str(e)}")
             return
         
-        self.test_window = TestExecutionWindow(test_id, self.id_user, test_name)
+        self.test_window = TestExecutionWindow(test_id, self.id_user, test_name, self.conn)
         result = self.test_window.exec_()
         self.load_tests()
         
@@ -909,12 +909,13 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             self.load_tests()
 
 
-class TestExecutionWindow(QDialog):
-    def __init__(self, test_id=None, user_id=None, test_name=None):
+class TestExecutionWindow(QDialog): # окно решения теста
+    def __init__(self, test_id=None, user_id=None, test_name=None, conn=None):
         super().__init__()
         self.test_id = test_id
         self.user_id = user_id
         self.test_name = test_name
+        self.conn = conn
         self.current_question = 0
         self.answers = {} # для хранения ответов
         
@@ -1050,15 +1051,15 @@ class TestExecutionWindow(QDialog):
             cursor = self.conn.cursor()
             
             query = ("""
-                SELECT DISTINCT 
+                select distinct 
                     tq.id_question,
                     tq.text as question_text
-                FROM test t
-                INNER JOIN test_content tc ON tc.id_test = t.id_test
-                INNER JOIN question_answer qa ON qa.id_que_ans = tc.id_que_ans
-                INNER JOIN test_question tq ON tq.id_question = qa.id_question
-                WHERE t.id_test = ?
-                ORDER BY tq.id_question
+                from test t
+                inner join test_content tc on tc.id_test = t.id_test
+                inner join question_answer qa on qa.id_que_ans = tc.id_que_ans
+                inner join test_question tq on tq.id_question = qa.id_question
+                where t.id_test = ?
+                order by tq.id_question
             """)
             
             cursor.execute(query, (self.test_id,))
@@ -1074,13 +1075,13 @@ class TestExecutionWindow(QDialog):
                 question_text = question[1]
                 
                 answers_query = ("""
-                    SELECT 
+                    select 
                         ta.id_answer,
                         ta.answer,
                         ta.is_true
-                    FROM test_answer ta
-                    WHERE ta.id_question = ?
-                    ORDER BY ta.id_answer
+                    from test_answer ta
+                    where ta.id_question = ?
+                    order by ta.id_answer
                 """)
 
                 cursor.execute(answers_query, (question_id,))
@@ -1298,7 +1299,7 @@ class TestExecutionWindow(QDialog):
             self.save_partial_test_results()
             self.close()
 
-    def save_partial_test_results(self):
+    def save_partial_test_results(self): # сохранение текущих ответов при выходе из теста
         try:
             cursor = self.conn.cursor()
             
@@ -1361,23 +1362,23 @@ class TestExecutionWindow(QDialog):
             cursor = self.conn.cursor()
             
             cursor.execute("""
-                SELECT id_attempt FROM solved_tests 
-                WHERE id_user = ? AND id_test = ?
+                select id_attempt from solved_tests 
+                where id_user = ? and id_test = ?
             """, (self.user_id, self.test_id))
             
             existing_attempt = cursor.fetchone()
             
             if existing_attempt:
                 cursor.execute("""
-                    UPDATE solved_tests 
-                    SET grade = ?, grade_percent = ? 
-                    WHERE id_attempt = ?
+                    update solved_tests 
+                    set grade = ?, grade_percent = ? 
+                    where id_attempt = ?
                 """, (grade, percentage, existing_attempt[0]))
                 action = "обновлены"
             else:
                 cursor.execute("""
-                    INSERT INTO solved_tests (id_user, id_test, grade, grade_percent)
-                    VALUES (?, ?, ?, ?)
+                    insert into solved_tests (id_user, id_test, grade, grade_percent)
+                    values (?, ?, ?, ?)
                 """, (self.user_id, self.test_id, grade, percentage))
                 action = "сохранены"
             
@@ -1400,7 +1401,7 @@ class TestExecutionWindow(QDialog):
                 f"Не удалось сохранить результаты теста: {str(e)}"
             )
     
-    def submit_test(self): # отправка теста
+    def submit_test(self): # сохранение попытки теста
         self.save_current_answers()
         
         unanswered_questions = []
@@ -1496,23 +1497,23 @@ class TestExecutionWindow(QDialog):
             cursor = self.conn.cursor()
             
             cursor.execute("""
-                SELECT id_attempt FROM solved_tests 
-                WHERE id_user = ? AND id_test = ?
+                select id_attempt from solved_tests 
+                where id_user = ? and id_test = ?
             """, (self.user_id, self.test_id))
             
             existing_attempt = cursor.fetchone()
             
             if existing_attempt:
                 cursor.execute("""
-                    UPDATE solved_tests 
-                    SET grade = ?, grade_percent = ? 
-                    WHERE id_attempt = ?
+                    update solved_tests 
+                    set grade = ?, grade_percent = ? 
+                    where id_attempt = ?
                 """, (grade, percentage, existing_attempt[0]))
                 action = "обновлены"
             else:
                 cursor.execute("""
-                    INSERT INTO solved_tests (id_user, id_test, grade, grade_percent)
-                    VALUES (?, ?, ?, ?)
+                    insert into solved_tests (id_user, id_test, grade, grade_percent)
+                    values (?, ?, ?, ?)
                 """, (self.user_id, self.test_id, grade, percentage))
                 action = "сохранены"
             

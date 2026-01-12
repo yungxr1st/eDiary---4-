@@ -69,7 +69,7 @@ class LoginWindow(QMainWindow):
             border: 2px solid #585858;
             padding: 5px;
             font-size: 12px;
-        """ # ввод текста в элементы
+        """ # стиль для ввода текста в элементы
 
         # логин
         login_label = QLabel("Логин:")
@@ -106,7 +106,7 @@ class LoginWindow(QMainWindow):
         auth_layout.addWidget(self.pswd_input)
         auth_layout.setSpacing(10)
 
-        # ошибка 
+        # строка ошибки 
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: red;")
         self.error_label.setAlignment(Qt.AlignCenter)
@@ -136,10 +136,10 @@ class LoginWindow(QMainWindow):
         main_layout.addWidget(self.auth_button, alignment=Qt.AlignCenter)
         main_layout.addStretch(2)
 
-    def hash_password(self, password):
-        return hashlib.sha256(password.encode('utf-8')).hexdigest()
+    def hash_password(self, password): # хэширование пароля
+        return hashlib.sha256(password.encode('utf-8')).hexdigest() 
 
-    def check_(self):
+    def check_(self): # проверка логина и пароля
         login = self.login_input.text()
         pswd = self.pswd_input.text()
         self.error_label.setText("")
@@ -174,9 +174,9 @@ class LoginWindow(QMainWindow):
                 if id_role == 1: # ученик
                     self.open_main_menu_for_student(id_user, fio)
                 if id_role == 2: # преподаватель
-                    self.open_main_menu_for_teacher(id_user, fio, conn)
+                    self.open_main_menu_for_teacher(id_user, fio)
                 if id_role == 3: # администратор
-                    self.open_main_menu_for_admin(id_user, fio, conn)
+                    self.open_main_menu_for_admin(id_user, fio)
                     
             if login == "123" and pswd == "123":
                 id_user = 1
@@ -246,17 +246,6 @@ def main():
         })
 
     print(schedule)
-
-
-    # cmd = pd.read_sql_query(query, conn)
-    # cmd.head()
-    # print(cmd)
-
-    # ip = "192.168.0.32";
-    # database = "столовая2";
-    # uname = "youruser";
-    # pass = "password";
-    # port = "52446";
 
 
 if __name__ == '__main__':
