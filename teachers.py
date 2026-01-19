@@ -96,7 +96,7 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #21618c;
             }
         """)
-        # self.button_attendance.clicked.connect(self.show_attendance)
+        self.button_attendance.clicked.connect(self.show_attendance)
         group_button_layout.addWidget(self.button_attendance, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -196,6 +196,7 @@ class MainMenuTeacher(QMainWindow):
 
         self.schedule()
         self.homework()
+        self.attendance()
         self.show_schedule()
 
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
@@ -779,6 +780,439 @@ class MainMenuTeacher(QMainWindow):
             self.group_combo.addItem("Ошибка загрузки")
             self.group_combo.setEnabled(False)
 
+    def show_attendance(self): # отображение посещаемости
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.attendance_widget)
+
+        self.load_groups_for_attendance()
+        self.load_status_for_attendance()
+
+    def attendance(self): # элементы для посещаемости
+        self.attendance_widget = QWidget()
+        attendance_layout = QVBoxLayout()
+        self.attendance_widget.setLayout(attendance_layout)
+
+        attendance_label = QLabel("Посещаемость:")
+        attendance_label.setAlignment(Qt.AlignLeft)
+        attendance_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        attendance_layout.addWidget(attendance_label)
+        
+        top_layout = QHBoxLayout() # для группы и кнопки обновить
+        
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        top_layout.addWidget(group_label)
+        
+        self.attendance_group_combo = QComboBox()
+        self.attendance_group_combo.addItems(["Выберите группу"])
+        self.attendance_group_combo.setFixedSize(150, 30)
+        self.attendance_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.attendance_group_combo.currentIndexChanged.connect(self.load_attendance)
+        top_layout.addWidget(self.attendance_group_combo)
+        
+        top_layout.addStretch()
+        
+        refresh_button = QPushButton("Обновить")
+        refresh_button.setFixedSize(120, 35)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        refresh_button.clicked.connect(self.load_attendance)
+        top_layout.addWidget(refresh_button)
+        
+        attendance_layout.addLayout(top_layout)
+        
+        # для таблицы
+        self.attendance_table = QTableWidget()
+        self.attendance_table.setFixedSize(600, 355)
+        self.attendance_table.setColumnCount(3)
+        self.attendance_table.setHorizontalHeaderLabels(["Предмет", "ФИО", "Статус посещаемости"])
+        self.attendance_table.horizontalHeader().setStretchLastSection(True)
+        self.attendance_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.attendance_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.attendance_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.attendance_table.itemSelectionChanged.connect(self.on_attendance_selected)
+        self.attendance_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.attendance_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # предмет
+        header.resizeSection(0, 120)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # фио
+        header.resizeSection(1, 300)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # статус посещаемости
+        attendance_layout.addWidget(self.attendance_table)
+        
+        # для выбора даты, типа статуса посещения и кнопки добавления 
+        bottom_layout = QHBoxLayout()
+        
+        date_layout = QVBoxLayout()
+        date_label = QLabel("Дата занятия:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
+        
+        self.attendance_date = QDateEdit()
+        self.attendance_date.setFixedSize(120, 30)
+        self.attendance_date.setCalendarPopup(True)
+        self.attendance_date.setDate(QDate.currentDate())
+        self.attendance_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        date_layout.addWidget(self.attendance_date, alignment=Qt.AlignLeft)
+        bottom_layout.addLayout(date_layout)
+        
+        status_layout = QVBoxLayout()
+        status_label = QLabel("Статус посещения:")
+        status_label.setStyleSheet("font-family: Roboto; color: #333;")
+        status_layout.addWidget(status_label, alignment=Qt.AlignLeft)
+        
+        self.attendance_status_combo = QComboBox()
+        self.attendance_status_combo.setFixedSize(200, 30)
+        self.attendance_status_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        status_layout.addWidget(self.attendance_status_combo, alignment=Qt.AlignLeft)
+        bottom_layout.addLayout(status_layout)
+        
+        bottom_layout.addStretch()
+        
+        # кнопка изменения
+        add_button_layout = QVBoxLayout()
+        add_button_layout.addStretch()
+        
+        self.add_attendance_button = QPushButton("Изменить запись")
+        self.add_attendance_button.setFixedSize(150, 35)
+        self.add_attendance_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.add_attendance_button.clicked.connect(self.add_attendance)
+        self.add_attendance_button.setEnabled(False)
+        add_button_layout.addWidget(self.add_attendance_button)
+        add_button_layout.addStretch()
+        
+        bottom_layout.addLayout(add_button_layout)
+        
+        attendance_layout.addLayout(bottom_layout)
+        
+        # для данных из выбранной строки в таблице
+        self.selected_student_id = None
+        self.selected_subject_id = None
+        self.selected_lesson_id = None
+
+    def load_attendance(self): # загрузка посещаемости
+        try:
+            selected_group_id = self.attendance_group_combo.currentData()
+            attendance_date = self.attendance_date.date()
+            attendance_date_str = attendance_date.toString("yyyy-MM-dd")
+            
+            if not selected_group_id:
+                self.attendance_table.setRowCount(0)
+                self.selected_student_id = None
+                self.selected_subject_id = None
+                self.add_attendance_button.setEnabled(False)
+                return
+                
+            cursor = self.conn.cursor()
+            query = """
+                select 
+                    sub.id_subject,
+                    sub.subject_name,
+                    u.id_user,
+                    u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
+                    isnull(ta.title, '') as attendance_status
+                from subj_students ss
+                inner join users u on ss.id_user = u.id_user
+                inner join subject sub on ss.id_subject = sub.id_subject
+                inner join schedule sch on sch.id_subject = sub.id_subject
+                inner join lesson l on l.id_subject = sub.id_subject
+                inner join attendance att on att.id_lesson = l.id_lesson
+                inner join type_attendance ta on att.id_type_att = ta.id_type_att
+                where sch.id_user = ? and sch.id_class = ? and l.date = ?
+                group by sub.id_subject, sub.subject_name, u.id_user, u.surname, u.name, u.patronymic, ta.title
+                order by sub.subject_name, u.surname, u.name, u.patronymic
+            """
+            cursor.execute(query, (self.id_user, selected_group_id, attendance_date_str))
+            attendance_data = cursor.fetchall()
+            
+            # вывод в таблице
+            self.attendance_table.setRowCount(len(attendance_data))
+            
+            for row, record in enumerate(attendance_data):
+                subject_id = record[0]
+                subject_name = record[1]
+                student_id = record[2]
+                fio = record[3]
+                attendance_status = record[4]
+                
+                # предмет
+                subject_item = QTableWidgetItem(subject_name)
+                subject_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
+                subject_item.setTextAlignment(Qt.AlignCenter)
+                self.attendance_table.setItem(row, 0, subject_item)
+                
+                # фио
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.attendance_table.setItem(row, 1, fio_item)
+                
+                # статус посещаемости
+                status_item = QTableWidgetItem(attendance_status)
+                status_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
+                status_item.setTextAlignment(Qt.AlignCenter)
+                
+                # цвет статуса
+                if attendance_status == 'Присутствовал':
+                    status_item.setForeground(QColor("#27ae60"))
+                elif attendance_status == 'Отсутствовал':
+                    status_item.setForeground(QColor("#e74c3c"))
+                elif attendance_status == 'Уважительная причина':
+                    status_item.setForeground(QColor("#f39c12"))
+                    
+                self.attendance_table.setItem(row, 2, status_item)
+                
+            self.attendance_table.resizeColumnsToContents()
+            self.attendance_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить данные о посещаемости: {str(e)}")
+            self.attendance_table.setRowCount(0)
+
+    def load_groups_for_attendance(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.attendance_group_combo) # в скобках указан элемент для подстановки
+
+    def load_groups_into_combo(self, combo_box): # загрузка групп
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select distinct 
+                    c.id_class,
+                    nc.num,
+                    nc.letter
+                from schedule s
+                inner join class c on s.id_class = c.id_class
+                inner join name_class nc on c.id_name_class = nc.id_name_class
+                where s.id_user = ?
+                order by nc.num, nc.letter
+            """
+            
+            cursor.execute(query, (self.id_user,))
+            groups_data = cursor.fetchall()
+            
+            combo_box.clear()
+            
+            if groups_data:
+                combo_box.addItem("Выберите группу", None)
+                for group in groups_data:
+                    class_id = group[0]
+                    class_num = group[1]
+                    class_letter = group[2]
+                    group_name = f"{class_num}{class_letter}"
+                    combo_box.addItem(group_name, class_id)
+            else:
+                combo_box.addItem("Нет групп")
+                combo_box.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            combo_box.clear()
+            combo_box.addItem("Ошибка загрузки")
+            combo_box.setEnabled(False)
+
+    def load_status_for_attendance(self): # загрузка статусов посещения
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select id_type_att, title 
+                from type_attendance 
+                order by id_type_att
+            """
+            cursor.execute(query)
+            statuses = cursor.fetchall()
+            
+            self.attendance_status_combo.clear()
+            
+            if statuses:
+                for status in statuses:
+                    status_id = status[0]
+                    status_title = status[1]
+                    self.attendance_status_combo.addItem(status_title, status_id)
+            else:
+                self.attendance_status_combo.addItem("Нет статуса")
+                self.attendance_status_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.attendance_status_combo.clear()
+            self.attendance_status_combo.addItem("Ошибка загрузки")
+            self.attendance_status_combo.setEnabled(False)
+
+    def on_attendance_selected(self): # выбор строки в таблице
+        selected_items = self.attendance_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data and 'student_id' in item_data and 'subject_id' in item_data:
+                self.selected_student_id = item_data['student_id']
+                self.selected_subject_id = item_data['subject_id']
+                self.add_attendance_button.setEnabled(True)
+            else:
+                self.selected_student_id = None
+                self.selected_subject_id = None
+                self.add_attendance_button.setEnabled(False)
+        else:
+            self.selected_student_id = None
+            self.selected_subject_id = None
+            self.add_attendance_button.setEnabled(False)
+
+    def add_attendance(self): # добавление записи о посещаемости
+        if not self.selected_student_id or not self.selected_subject_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите студента из таблицы")
+            return
+            
+        selected_group_id = self.attendance_group_combo.currentData()
+        if not selected_group_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+            
+        attendance_date = self.attendance_date.date()
+        attendance_date_str = attendance_date.toString("yyyy-MM-dd")
+        
+        status_type_id = self.attendance_status_combo.currentData()
+        if not status_type_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите статус посещения")
+            return
+            
+        try: # необходимо поправить вывод таблицы, сейчас она выводится без учета даты, а надо сделать так, чтобы дата влияла на вывод в таблице (метод load_attendance)
+            cursor = self.conn.cursor()
+            
+            lesson_query = """
+                select id_lesson 
+                from lesson 
+                where id_subject = ? and id_class = ? and date = ?
+            """
+            cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, attendance_date_str))
+            lesson_data = cursor.fetchone()
+            
+            lesson_id = lesson_data[0]
+            
+            check_query = """
+                select id_attendance 
+                from attendance 
+                where id_user = ? and id_lesson = ?
+            """
+            cursor.execute(check_query, (self.selected_student_id, lesson_id)) 
+            existing_attendance = cursor.fetchone()
+            
+            update_query = """
+                update attendance 
+                set id_type_att = ? 
+                where id_attendance = ?
+            """
+            cursor.execute(update_query, (status_type_id, existing_attendance[0]))
+            
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Запись о посещаемости успешно изменена")
+            
+            self.load_attendance()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось изменить запись о посещаемости: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
     def test_const_open(self):
         self.test_window = TestConstructor(self.id_user, self.fio, self.conn)
         self.test_window.show()
@@ -1186,7 +1620,6 @@ class TestConstructor(QMainWindow):
             for i in range(self.questions_list.count()):
                 item = self.questions_list.item(i)
                 item_data = item.data(Qt.UserRole)
-
                 if item_data:
                     question_text = item_data['question_text']
                     
@@ -1197,64 +1630,41 @@ class TestConstructor(QMainWindow):
                     
                     if existing_question:
                         question_id = existing_question[0]
-
-                        for answer in item_data['answers']:
-                            cursor.execute("""
-                                select id_answer from test_answer 
-                                where id_question = ? and answer = ? and is_true = ?
-                            """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
-                            
-                            answer_row = cursor.fetchone()
-                            if answer_row:
-                                answer_id = answer_row[0]
                     else:
                         cursor.execute("""
                             insert into test_question (text) values (?)
                         """, (question_text,))
                         question_id = cursor.execute("select @@IDENTITY").fetchone()[0]
-                        
-                        for answer in item_data['answers']:
-                            cursor.execute("""
-                                insert into test_answer (id_question, answer, is_true)
-                                values (?, ?, ?)
-                            """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
                     
                     for answer in item_data['answers']:
+                        answer_text = answer['text']
+                        is_correct = 1 if answer['is_correct'] else 0
+                        
                         cursor.execute("""
                             select id_answer from test_answer 
                             where id_question = ? and answer = ? and is_true = ?
-                        """, (question_id, answer['text'], 1 if answer['is_correct'] else 0))
+                        """, (question_id, answer_text, is_correct))
                         
                         answer_row = cursor.fetchone()
                         if answer_row:
                             answer_id = answer_row[0]
-                            
+                        else:
                             cursor.execute("""
-                                select id_que_ans from question_answer 
-                                where id_question = ? and id_answer = ? 
-                            """, (question_id, answer_id)) ## перепроверить ---------------------------------------------------------------------------------
-
-                            que_ans_row = cursor.fetchone()
-                            if que_ans_row:
-                                que_ans_id = que_ans_row[0]
-                            else:
-                                cursor.execute("""
-                                    insert into question_answer (id_question, id_answer)
-                                    values (?, ?)
-                                """, (question_id, answer_id))
-                                
-                                que_ans_id = cursor.execute("select @@IDENTITY").fetchone()[0]
-                            
+                                insert into test_answer (id_question, answer, is_true)
+                                values (?, ?, ?)
+                            """, (question_id, answer_text, is_correct))
+                            answer_id = cursor.execute("select @@IDENTITY").fetchone()[0]
+                        
+                        cursor.execute("""
+                            select id_content from test_content 
+                            where id_test = ? and id_answer = ?
+                        """, (test_id, answer_id))
+                        
+                        if not cursor.fetchone():
                             cursor.execute("""
-                                select id_content from test_content 
-                                where id_test = ? and id_que_ans = ?
-                            """, (test_id, que_ans_id))
-                            
-                            if not cursor.fetchone():
-                                cursor.execute("""
-                                    insert into test_content (id_test, id_que_ans)
-                                    values (?, ?)
-                                """, (test_id, que_ans_id))
+                                insert into test_content (id_test, id_answer)
+                                values (?, ?)
+                            """, (test_id, answer_id))
         
             self.conn.commit()
             cursor.close()

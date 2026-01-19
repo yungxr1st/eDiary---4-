@@ -774,14 +774,14 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             query = ("""
                 declare @id_user int = ?;
                 select t_n.name, t.upload, t.deadline, 'Вопросов: ' + 
-                cast(count(distinct q_a.id_question) as varchar(2)) as questions, 
+                cast(count(distinct t_a.id_question) as varchar(2)) as questions, 
                 convert(varchar, s_t.grade) as grade, 
                 convert(varchar, s_t.grade_percent) as grade_percent, 
                 t.id_test
                 from test_name t_n
                 inner join test t on t.id_name = t_n.id_name
                 left join test_content t_c on t_c.id_test = t.id_test
-                left join question_answer q_a on q_a.id_que_ans = t_c.id_que_ans
+                left join test_answer t_a on t_a.id_answer = t_c.id_answer
                 left join solved_tests s_t on s_t.id_test = t.id_test and s_t.id_user = @id_user
                 where id_name_class = (select id_name_class from class where id_user = @id_user)
                 group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, s_t.grade_percent
@@ -1052,14 +1052,14 @@ class TestExecutionWindow(QDialog): # окно решения теста
             
             query = ("""
                 select distinct 
-                    tq.id_question,
-                    tq.text as question_text
+                    t_q.id_question,
+                    t_q.text as question_text
                 from test t
-                inner join test_content tc on tc.id_test = t.id_test
-                inner join question_answer qa on qa.id_que_ans = tc.id_que_ans
-                inner join test_question tq on tq.id_question = qa.id_question
+                inner join test_content t_c on t_c.id_test = t.id_test
+                inner join test_answer t_a on t_a.id_answer = t_c.id_answer
+                inner join test_question t_q on t_q.id_question = t_a.id_question
                 where t.id_test = ?
-                order by tq.id_question
+                order by t_q.id_question
             """)
             
             cursor.execute(query, (self.test_id,))
