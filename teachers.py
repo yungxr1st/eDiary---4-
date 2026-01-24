@@ -165,7 +165,7 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #21618c;
             }
         """)
-        # self.button_stats.clicked.connect(self.show_grades)
+        self.button_stats.clicked.connect(self.show_grades)
         group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -197,6 +197,7 @@ class MainMenuTeacher(QMainWindow):
         self.schedule()
         self.homework()
         self.attendance()
+        self.grades()
         self.show_schedule()
 
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
@@ -1155,9 +1156,9 @@ class MainMenuTeacher(QMainWindow):
             self.selected_subject_id = None
             self.add_attendance_button.setEnabled(False)
 
-    def add_attendance(self): # добавление записи о посещаемости
+    def add_attendance(self): # изменение записи о посещаемости
         if not self.selected_student_id or not self.selected_subject_id:
-            QMessageBox.warning(self, "Ошибка", "Выберите студента из таблицы")
+            QMessageBox.warning(self, "Ошибка", "Выберите ученика из таблицы")
             return
             
         selected_group_id = self.attendance_group_combo.currentData()
@@ -1173,7 +1174,7 @@ class MainMenuTeacher(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Выберите статус посещения")
             return
             
-        try: # необходимо поправить вывод таблицы, сейчас она выводится без учета даты, а надо сделать так, чтобы дата влияла на вывод в таблице (метод load_attendance)
+        try:
             cursor = self.conn.cursor()
             
             lesson_query = """
@@ -1210,6 +1211,444 @@ class MainMenuTeacher(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось изменить запись о посещаемости: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def show_grades(self):
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.grades_widget)
+
+        self.load_groups_for_grades()
+        self.load_types_for_grades()
+
+    def grades(self):
+        self.grades_widget = QWidget()
+        grades_layout = QVBoxLayout()
+        self.grades_widget.setLayout(grades_layout)
+
+        grades_label = QLabel("Успеваемость:")
+        grades_label.setAlignment(Qt.AlignLeft)
+        grades_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        grades_layout.addWidget(grades_label)
+        
+        top_layout = QHBoxLayout() # для группы и кнопки обновить
+        
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        top_layout.addWidget(group_label)
+        
+        self.grades_group_combo = QComboBox()
+        self.grades_group_combo.addItems(["Выберите группу"])
+        self.grades_group_combo.setFixedSize(150, 30)
+        self.grades_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.grades_group_combo.currentIndexChanged.connect(self.load_grades)
+        top_layout.addWidget(self.grades_group_combo)
+        
+        top_layout.addStretch()
+        
+        refresh_button = QPushButton("Обновить")
+        refresh_button.setFixedSize(120, 35)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        refresh_button.clicked.connect(self.load_grades)
+        top_layout.addWidget(refresh_button)
+        
+        grades_layout.addLayout(top_layout)
+        
+        # для таблицы
+        self.grades_table = QTableWidget()
+        self.grades_table.setFixedSize(600, 355)
+        self.grades_table.setColumnCount(4)
+        self.grades_table.setHorizontalHeaderLabels(["Предмет", "ФИО", "Оценка", "Тип оценки"])
+        self.grades_table.horizontalHeader().setStretchLastSection(True)
+        self.grades_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.grades_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.grades_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.grades_table.itemSelectionChanged.connect(self.on_grades_selected)
+        self.grades_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.grades_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # предмет
+        header.resizeSection(0, 120)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # фио
+        header.resizeSection(1, 280)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)  # оценка
+        header.resizeSection(2, 70)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # тип оценки
+        grades_layout.addWidget(self.grades_table)
+        
+        # для выбора даты, типа статуса посещения и кнопки добавления 
+        bottom_layout = QHBoxLayout()
+        
+        date_layout = QVBoxLayout()
+        date_label = QLabel("Дата занятия:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
+        
+        self.grades_date = QDateEdit()
+        self.grades_date.setFixedSize(120, 30)
+        self.grades_date.setCalendarPopup(True)
+        self.grades_date.setDate(QDate.currentDate())
+        self.grades_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        date_layout.addWidget(self.grades_date, alignment=Qt.AlignLeft)
+        bottom_layout.addLayout(date_layout)
+        
+        type_grades_layout = QHBoxLayout() # область для элементов, относящихся к оценке
+        bottom_layout.addLayout(type_grades_layout)
+        grades_from_db_layout = QVBoxLayout() # область для оценки
+        type_grades_layout.addLayout(grades_from_db_layout)
+        type_gr_from_db_layout = QVBoxLayout() # область для типа оценки
+        type_grades_layout.addLayout(type_gr_from_db_layout)
+
+        grades_from_db_label = QLabel("Оценка:")
+        grades_from_db_label.setStyleSheet("font-family: Roboto; color: #333;")
+        grades_from_db_layout.addWidget(grades_from_db_label, alignment=Qt.AlignLeft)
+        
+        self.grades_db_combo = QComboBox()
+        self.grades_db_combo.addItems(["2", "3", "4", "5"])
+        self.grades_db_combo.setFixedSize(70, 30)
+        self.grades_db_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        grades_from_db_layout.addWidget(self.grades_db_combo, alignment=Qt.AlignLeft)
+
+        type_gr_from_db_label = QLabel("Тип оценки:")
+        type_gr_from_db_label.setStyleSheet("font-family: Roboto; color: #333;")
+        type_gr_from_db_layout.addWidget(type_gr_from_db_label, alignment=Qt.AlignLeft)
+        
+        self.type_gr_db_combo = QComboBox()
+        self.type_gr_db_combo.setFixedSize(150, 30)
+        self.type_gr_db_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        type_gr_from_db_layout.addWidget(self.type_gr_db_combo, alignment=Qt.AlignLeft)
+        
+        bottom_layout.addStretch()
+        
+        # кнопка изменения
+        add_button_layout = QVBoxLayout()
+        add_button_layout.addStretch()
+        
+        self.add_grade_button = QPushButton("Изменить запись")
+        self.add_grade_button.setFixedSize(150, 35)
+        self.add_grade_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.add_grade_button.clicked.connect(self.add_grades)
+        self.add_grade_button.setEnabled(False)
+        add_button_layout.addWidget(self.add_grade_button)
+        add_button_layout.addStretch()
+        
+        bottom_layout.addLayout(add_button_layout)
+        
+        grades_layout.addLayout(bottom_layout)
+        
+        # для данных из выбранной строки в таблице
+        self.selected_student_id = None
+        self.selected_subject_id = None
+        self.selected_lesson_id = None
+
+    def load_grades(self):
+        try:
+            selected_group_id = self.grades_group_combo.currentData()
+            grades_date = self.grades_date.date()
+            grades_date_str = grades_date.toString("yyyy-MM-dd")
+            
+            if not selected_group_id:
+                self.grades_table.setRowCount(0)
+                self.selected_student_id = None
+                self.selected_subject_id = None
+                self.add_grade_button.setEnabled(False)
+                return
+                
+            cursor = self.conn.cursor()
+            query = """
+                select 
+                    g.id_grade,
+                    sub.id_subject,
+                    sub.subject_name,
+                    g.id_user,
+                    u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
+                    isnull(g.grade, '') as grade,
+                    isnull(t_g.title, '') as type_grade
+                from grade g
+                inner join lesson l on l.id_lesson = g.id_lesson
+                inner join subject sub on sub.id_subject = l.id_subject
+                inner join users u on u.id_user = g.id_user
+                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
+                inner join schedule sch on sch.id_subject = sub.id_subject
+                where sch.id_user = ? and sch.id_class = ? and l.date = ?
+                group by g.id_grade, sub.id_subject, sub.subject_name, g.id_user, 
+                    u.surname, u.name, u.patronymic, g.grade, g.id_type_gr, t_g.title
+                order by sub.subject_name, u.surname, u.name, u.patronymic
+            """
+            cursor.execute(query, (self.id_user, selected_group_id, grades_date_str))
+            grades_data = cursor.fetchall()
+            
+            # вывод в таблице
+            self.grades_table.setRowCount(len(grades_data))
+            
+            for row, record in enumerate(grades_data):
+                id_grade = record[0]
+                subject_id = record[1]
+                subject_name = record[2]
+                student_id = record[3]
+                fio = record[4]
+                grade = str(record[5])
+                type_grade = record[6]
+                
+                # предмет
+                subject_item = QTableWidgetItem(subject_name)
+                subject_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 'student_id': student_id, 'grade_id': id_grade
+                })
+                subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
+                subject_item.setTextAlignment(Qt.AlignCenter)
+                self.grades_table.setItem(row, 0, subject_item)
+                
+                # фио
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 'student_id': student_id, 'grade_id': id_grade
+                })
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.grades_table.setItem(row, 1, fio_item)
+                
+                # оценка
+                grade_item = QTableWidgetItem(grade)
+                grade_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 'student_id': student_id, 'grade_id': id_grade
+                })
+                grade_item.setFlags(grade_item.flags() & ~Qt.ItemIsEditable)
+                grade_item.setTextAlignment(Qt.AlignCenter)
+
+                # цвет оценки
+                grade_int = int(grade)
+                if grade_int >= 4:
+                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                elif grade_int == 3:
+                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                elif grade_int <= 2:
+                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                
+                self.grades_table.setItem(row, 2, grade_item)
+
+                # тип оценки
+                type_item = QTableWidgetItem(type_grade)
+                type_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 'student_id': student_id, 'grade_id': id_grade
+                })
+                type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
+                type_item.setTextAlignment(Qt.AlignCenter)
+                self.grades_table.setItem(row, 3, type_item)
+                
+            self.grades_table.resizeColumnsToContents()
+            self.grades_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить данные об оценках: {str(e)}")
+            self.grades_table.setRowCount(0)
+
+    def load_groups_for_grades(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.grades_group_combo) # в скобках указан элемент для подстановки
+
+    def load_types_for_grades(self): # загрузка типов оценки
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select id_type_gr, title 
+                from type_grade
+                order by id_type_gr
+            """
+            cursor.execute(query)
+            types = cursor.fetchall()
+            
+            self.type_gr_db_combo.clear()
+            
+            if types:
+                for type in types:
+                    id_type = type[0]
+                    type_title = type[1]
+                    self.type_gr_db_combo.addItem(type_title, id_type)
+            else:
+                self.type_gr_db_combo.addItem("Нет типа оценки")
+                self.type_gr_db_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.type_gr_db_combo.clear()
+            self.type_gr_db_combo.addItem("Ошибка загрузки")
+            self.type_gr_db_combo.setEnabled(False)
+
+    def on_grades_selected(self): # выбор строки в таблице
+        selected_items = self.grades_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data and 'student_id' in item_data and 'subject_id' in item_data:
+                self.selected_student_id = item_data['student_id']
+                self.selected_subject_id = item_data['subject_id']
+                self.add_grade_button.setEnabled(True)
+            else:
+                self.selected_student_id = None
+                self.selected_subject_id = None
+                self.add_grade_button.setEnabled(False)
+        else:
+            self.selected_student_id = None
+            self.selected_subject_id = None
+            self.add_grade_button.setEnabled(False)
+
+    def add_grades(self): # изменение записи об оценке
+        if not self.selected_student_id or not self.selected_subject_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите ученика из таблицы")
+            return
+            
+        selected_group_id = self.grades_group_combo.currentData()
+        if not selected_group_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+            
+        grades_date = self.grades_date.date()
+        grades_date_str = grades_date.toString("yyyy-MM-dd")
+        
+        type_id = self.type_gr_db_combo.currentData()
+        if not type_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите статус посещения")
+            return
+            
+        try:
+            cursor = self.conn.cursor()
+            
+            lesson_query = """
+                select id_lesson 
+                from lesson 
+                where id_subject = ? and id_class = ? and date = ?
+            """
+            cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, grades_date_str))
+            lesson_data = cursor.fetchone()
+            
+            lesson_id = lesson_data[0]
+            
+            check_query = """
+                select id_grade
+                from grade 
+                where id_user = ? and id_lesson = ?
+            """
+            cursor.execute(check_query, (self.selected_student_id, lesson_id)) 
+            existing_grade = cursor.fetchone()
+
+            grade = int(self.grades_db_combo.currentText())
+            
+            update_query = """
+                update grade
+                set id_type_gr = ?, grade = ?
+                where id_grade = ?
+            """
+            cursor.execute(update_query, (type_id, grade, existing_grade[0]))
+            
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Запись об оценке успешно изменена")
+            
+            self.load_grades()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось изменить запись об оценке: {str(e)}")
             if 'cursor' in locals():
                 self.conn.rollback()
 
