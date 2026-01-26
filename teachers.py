@@ -142,7 +142,7 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #21618c;
             }
         """)
-        self.button_tests.clicked.connect(self.test_const_open)
+        self.button_tests.clicked.connect(self.show_tests)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -198,6 +198,7 @@ class MainMenuTeacher(QMainWindow):
         self.homework()
         self.attendance()
         self.grades()
+        self.tests()
         self.show_schedule()
 
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
@@ -361,7 +362,7 @@ class MainMenuTeacher(QMainWindow):
         
         self.group_combo = QComboBox()
         self.group_combo.addItems(["Выберите группу"])
-        self.group_combo.setFixedSize(130, 28)
+        self.group_combo.setFixedSize(130, 30)
         self.group_combo.setStyleSheet("""
             border-radius: 5px;
             border: 1px solid #ccc;
@@ -474,12 +475,39 @@ class MainMenuTeacher(QMainWindow):
         date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
         date_layout.addWidget(self.deadline_date, alignment=Qt.AlignLeft)
 
+        edit_btn_layout = QVBoxLayout() # область для кнопки редактирования дз
+        exercise_layout.addLayout(edit_btn_layout)
+        edit_btn_layout.addStretch(1)
+
+        self.edit_button = QPushButton("Изменить")
+        self.edit_button.setFixedSize(100, 35)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.edit_button.clicked.connect(self.edit_homework)
+        self.edit_button.setEnabled(False)
+        edit_btn_layout.addWidget(self.edit_button)
+
         add_del_button = QVBoxLayout() # область для кнопок добавления/удаления
         exercise_layout.addLayout(add_del_button)
         add_del_button.addStretch(1)
 
-        self.del_button = QPushButton("Удалить задание")
-        self.del_button.setFixedSize(180, 35)
+        self.del_button = QPushButton("Удалить")
+        self.del_button.setFixedSize(100, 35)
         self.del_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -493,13 +521,16 @@ class MainMenuTeacher(QMainWindow):
             QPushButton:pressed {
                 background-color: #21618c;
             }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
         """)
         self.del_button.clicked.connect(self.delete_homework)
         self.del_button.setEnabled(False)
         add_del_button.addWidget(self.del_button)
 
-        self.add_button = QPushButton("Добавить задание")
-        self.add_button.setFixedSize(180, 35)
+        self.add_button = QPushButton("Добавить")
+        self.add_button.setFixedSize(100, 35)
         self.add_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -609,6 +640,7 @@ class MainMenuTeacher(QMainWindow):
             if item_data:
                 self.selected_homework_id = item_data['id']
                 self.del_button.setEnabled(True)
+                self.edit_button.setEnabled(True)
                 
                 self.question_text_edit.setPlainText(item_data['exercise'])
                 self.deadline_date.setDate(QDate(item_data['deadline'].year, 
@@ -618,22 +650,23 @@ class MainMenuTeacher(QMainWindow):
             else:
                 self.selected_homework_id = None
                 self.del_button.setEnabled(False)
+                self.edit_button.setEnabled(False)
                 self.question_text_edit.clear()
                 self.validate_homework_text()
         else:
             self.selected_homework_id = None
             self.del_button.setEnabled(False)
+            self.edit_button.setEnabled(False)
             self.question_text_edit.clear()
             self.validate_homework_text()
 
-    def add_homework(self): # добавление домашнего задания
+    def edit_homework(self): # редактирование домашнего задания
         selected_group_id = self.group_combo.currentData()
         if not selected_group_id:
             QMessageBox.warning(self, "Ошибка", "Выберите группу для добавления задания")
             return
         
         exercise_text = self.question_text_edit.toPlainText().strip()
-        
         if not exercise_text:
             QMessageBox.warning(self, "Ошибка", "Введите текст задания")
             return
@@ -649,7 +682,84 @@ class MainMenuTeacher(QMainWindow):
             reply = QMessageBox.question(
                 self,
                 "Подтверждение",
-                "Срок выполнения уже прошел. Вы уверены, что хотите добавить задание?",
+                "Срок выполнения уже прошел. Вы уверены, что хотите изменить задание?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            update_query = """
+                update exercise 
+                set exercise = ?, deadline = ? 
+                where id_exercise = ?
+            """
+            cursor.execute(update_query, (exercise_text, deadline_date_str, self.selected_homework_id))
+            
+            if cursor.rowcount > 0:
+                self.conn.commit()
+                
+                QMessageBox.information(
+                    self, 
+                    "Успех", 
+                    f"Задание успешно обновлено!"
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Задание не найдено."
+                )
+            
+            # очистка полей
+            self.question_text_edit.clear()
+            self.validate_homework_text()
+            self.load_homework()
+
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить задание: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def add_homework(self): # добавление домашнего задания
+        if self.edit_button.isEnabled():
+            reply = QMessageBox.question(
+                self,
+                "Предупреждение",
+                "Вы уверены, что хотите добавить задание, а не изменить?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        selected_group_id = self.group_combo.currentData()
+        if not selected_group_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу для добавления задания")
+            return
+        
+        exercise_text = self.question_text_edit.toPlainText().strip()
+        if not exercise_text:
+            QMessageBox.warning(self, "Ошибка", "Введите текст задания")
+            return
+        
+        if len(exercise_text) > 150:
+            QMessageBox.warning(self, "Ошибка", "Текст задания не должен превышать 150 символов")
+            return
+        
+        deadline_date = self.deadline_date.date()
+        deadline_date_str = deadline_date.toString("yyyy-MM-dd")
+        
+        if deadline_date < QDate.currentDate():
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение",
+                "Срок сдачи уже прошел. Вы уверены, что хотите изменить задание?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
@@ -946,8 +1056,8 @@ class MainMenuTeacher(QMainWindow):
         add_button_layout = QVBoxLayout()
         add_button_layout.addStretch()
         
-        self.add_attendance_button = QPushButton("Изменить запись")
-        self.add_attendance_button.setFixedSize(150, 35)
+        self.add_attendance_button = QPushButton("Сохранить")
+        self.add_attendance_button.setFixedSize(120, 35)
         self.add_attendance_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -1402,8 +1512,8 @@ class MainMenuTeacher(QMainWindow):
         add_button_layout = QVBoxLayout()
         add_button_layout.addStretch()
         
-        self.add_grade_button = QPushButton("Изменить запись")
-        self.add_grade_button.setFixedSize(150, 35)
+        self.add_grade_button = QPushButton("Сохранить")
+        self.add_grade_button.setFixedSize(120, 35)
         self.add_grade_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -1651,6 +1761,226 @@ class MainMenuTeacher(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось изменить запись об оценке: {str(e)}")
             if 'cursor' in locals():
                 self.conn.rollback()
+
+    def show_tests(self):
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.tests_widget)
+
+        self.tests()
+
+    def tests(self):
+        self.tests_widget = QWidget()
+        tests_layout = QVBoxLayout()
+        self.tests_widget.setLayout(tests_layout)
+
+        tests_label = QLabel("Тесты:")
+        tests_label.setAlignment(Qt.AlignLeft)
+        tests_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        tests_layout.addWidget(tests_label)
+        
+        top_layout = QHBoxLayout() # для группы и кнопки обновить
+        
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        top_layout.addWidget(group_label)
+        
+        self.tests_group_combo = QComboBox()
+        self.tests_group_combo.addItems(["Выберите группу"])
+        self.tests_group_combo.setFixedSize(150, 30)
+        self.tests_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.tests_group_combo.currentIndexChanged.connect(self.load_grades)
+        top_layout.addWidget(self.tests_group_combo)
+        
+        top_layout.addStretch()
+        
+        refresh_button = QPushButton("Обновить")
+        refresh_button.setFixedSize(120, 35)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        # refresh_button.clicked.connect(self.load_grades)
+        top_layout.addWidget(refresh_button)
+        
+        tests_layout.addLayout(top_layout)
+        
+        # для таблицы
+        self.tests_table = QTableWidget()
+        self.tests_table.setFixedSize(600, 355)
+        self.tests_table.setColumnCount(5)
+        self.tests_table.setHorizontalHeaderLabels(["Предмет", "Группа", "Тест", "Дата загрузки", "Срок сдачи"])
+        self.tests_table.horizontalHeader().setStretchLastSection(True)
+        self.tests_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.tests_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.tests_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # self.tests_table.itemSelectionChanged.connect(self.on_grades_selected)
+        self.tests_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.tests_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # предмет
+        header.resizeSection(0, 120)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # группа
+        header.resizeSection(1, 80)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)  # тест
+        header.resizeSection(2, 140)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # дата загрузки
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # срок сдачи
+        tests_layout.addWidget(self.tests_table)
+        
+        # для выбора даты, типа статуса посещения и кнопки добавления 
+        bottom_layout = QHBoxLayout()
+        
+        date_layout = QVBoxLayout()
+        date_label = QLabel("Дата занятия:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
+        
+        self.tests_date = QDateEdit()
+        self.tests_date.setFixedSize(120, 30)
+        self.tests_date.setCalendarPopup(True)
+        self.tests_date.setDate(QDate.currentDate())
+        self.tests_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        date_layout.addWidget(self.tests_date, alignment=Qt.AlignLeft)
+        bottom_layout.addLayout(date_layout)
+        
+        # кнопки для просмотра оценок, добавления и удаления тестов
+        view_add_del_layout = QHBoxLayout()
+        view_add_del_layout.addStretch()
+        
+        self.view_grade_button = QPushButton("Просмотреть оценки")
+        self.view_grade_button.setFixedSize(150, 35)
+        self.view_grade_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.view_grade_button.clicked.connect(self.add_grades)
+        self.view_grade_button.setEnabled(False)
+        view_add_del_layout.addWidget(self.view_grade_button)
+
+        self.add_test_button = QPushButton("Добавить тест")
+        self.add_test_button.setFixedSize(130, 35)
+        self.add_test_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.add_test_button.clicked.connect(self.test_const_open)
+        view_add_del_layout.addWidget(self.add_test_button)
+
+        self.del_test_button = QPushButton("Удалить тест")
+        self.del_test_button.setFixedSize(130, 35)
+        self.del_test_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.del_test_button.clicked.connect(self.add_grades)
+        self.del_test_button.setEnabled(False)
+        view_add_del_layout.addWidget(self.del_test_button)
+        
+        bottom_layout.addLayout(view_add_del_layout)
+        
+        tests_layout.addLayout(bottom_layout)
+
+    def load_tests(self):
+        pass
 
     def test_const_open(self):
         self.test_window = TestConstructor(self.id_user, self.fio, self.conn)
