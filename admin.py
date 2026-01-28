@@ -138,8 +138,7 @@ class MainMenuAdmin(QMainWindow):
         self.users_table.horizontalHeader().setStretchLastSection(True)
         self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.users_table.setSelectionMode(QTableWidget.SingleSelection)
-        
-        table_style = ("""
+        self.users_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
                 border: 1px solid #ccc;
@@ -174,7 +173,6 @@ class MainMenuAdmin(QMainWindow):
                 border: none;
             }
         """)
-        self.users_table.setStyleSheet(table_style)
         
         # заголовки
         header = self.users_table.horizontalHeader()

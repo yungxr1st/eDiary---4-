@@ -14,6 +14,7 @@ from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
 from teachers import MainMenuTeacher
 from admin import MainMenuAdmin
 from students import MainMenuStudent
+from administration import MainMenuAdministration
 
 uname = "youruser"
 pswd = "password"
@@ -153,7 +154,8 @@ class LoginWindow(QMainWindow):
 
             hashed_pswd = self.hash_password(pswd)
 
-            query = ("""select u.id_user, u.surname, left(u.name, 1) + '.', left(u.patronymic, 1) + '.', u.id_role
+            query = ("""
+                select u.id_user, u.surname, left(u.name, 1) + '.', left(u.patronymic, 1) + '.', u.id_role
                 from users u 
                 inner join role r ON u.id_role = r.id_role 
                 where u.login = ? and u.password = ? and u.is_active = 1
@@ -177,6 +179,9 @@ class LoginWindow(QMainWindow):
                     self.open_main_menu_for_teacher(id_user, fio)
                 if id_role == 3: # администратор
                     self.open_main_menu_for_admin(id_user, fio)
+                if id_role == 4: # администрация центра
+                    self.open_main_menu_for_administration(id_user, fio)
+                
                     
             if login == "123" and pswd == "123":
                 id_user = 1
@@ -195,6 +200,11 @@ class LoginWindow(QMainWindow):
                 fio = "администратор"
 
                 self.open_main_menu_for_admin(id_user, fio)
+
+            elif login == "2" and pswd == "2":
+                id_user = 4
+                fio = "сотрудник администрации"
+                self.open_main_menu_for_administration(id_user, fio)
 
             else:
                 self.error_label.setText("Неверный логин или пароль")
@@ -221,6 +231,12 @@ class LoginWindow(QMainWindow):
 
         self.main_menu_admin = MainMenuAdmin(id_user, fio, conn)
         self.main_menu_admin.show()
+
+    def open_main_menu_for_administration(self, id_user, fio): # главное меню для администрации центра
+        self.close()
+
+        self.main_menu_administration = MainMenuAdministration(id_user, fio, conn)
+        self.main_menu_administration.show()
 
 
 def main():
