@@ -799,14 +799,14 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 for record in tests_data:
                     test_name = record[0]
                     upload = record[1]
-                    deadline = record[2]
+                    self.deadline = record[2]
                     questions = record[3]
                     grade = record[4]
                     grade_percent = record[5]
                     test_id = record[6]
 
                     formatted_upload = upload.strftime("%d.%m.%Y")
-                    formatted_deadline = deadline.strftime("%d.%m.%Y")
+                    formatted_deadline = self.deadline.strftime("%d.%m.%Y")
 
                     if grade == None:
                         grade = "Нет оценки"
@@ -854,8 +854,11 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             self.tests_table.addItem(error_item)
 
     def open_test_window(self, item): # открытие теста
+        if QDate.currentDate() > self.deadline:
+            QMessageBox.warning(self, "Ошибка", "Срок выполнения теста окончен")
+            return
+
         test_id = item.data(Qt.UserRole)
-        
         if not test_id:
             QMessageBox.warning(self, "Ошибка", "Не удалось получить информацию о тесте")
             return

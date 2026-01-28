@@ -19,6 +19,7 @@ class MainMenuTeacher(QMainWindow):
         self.id_user = id_user
         self.fio = fio
         self.conn = conn
+        self.selected_test_id = None
 
         central_widget = QWidget()
 
@@ -362,7 +363,7 @@ class MainMenuTeacher(QMainWindow):
         
         self.group_combo = QComboBox()
         self.group_combo.addItems(["Выберите группу"])
-        self.group_combo.setFixedSize(130, 30)
+        self.group_combo.setFixedSize(150, 30)
         self.group_combo.setStyleSheet("""
             border-radius: 5px;
             border: 1px solid #ccc;
@@ -1767,7 +1768,7 @@ class MainMenuTeacher(QMainWindow):
 
         self.content_layout_v.addWidget(self.tests_widget)
 
-        self.tests()
+        self.load_groups_for_tests()
 
     def tests(self):
         self.tests_widget = QWidget()
@@ -1785,8 +1786,9 @@ class MainMenuTeacher(QMainWindow):
             margin-bottom: 10px;
         """)
         tests_layout.addWidget(tests_label)
+        tests_layout.addSpacing(2)
         
-        top_layout = QHBoxLayout() # для группы и кнопки обновить
+        top_layout = QHBoxLayout() # для группы, даты и кнопки обновить
         
         group_label = QLabel("Группа:")
         group_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
@@ -1802,29 +1804,27 @@ class MainMenuTeacher(QMainWindow):
             padding: 5px;
             font-family: Roboto;
         """)
-        # self.tests_group_combo.currentIndexChanged.connect(self.load_grades)
+        self.tests_group_combo.currentIndexChanged.connect(self.load_tests)
         top_layout.addWidget(self.tests_group_combo)
         
         top_layout.addStretch()
+
+        date_label = QLabel("Дата занятия:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        top_layout.addWidget(date_label, alignment=Qt.AlignLeft)
         
-        refresh_button = QPushButton("Обновить")
-        refresh_button.setFixedSize(120, 35)
-        refresh_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
+        self.tests_date = QDateEdit()
+        self.tests_date.setFixedSize(120, 30)
+        self.tests_date.setCalendarPopup(True)
+        self.tests_date.setDate(QDate.currentDate())
+        self.tests_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
         """)
-        # refresh_button.clicked.connect(self.load_grades)
-        top_layout.addWidget(refresh_button)
+        top_layout.addWidget(self.tests_date, alignment=Qt.AlignLeft)
         
         tests_layout.addLayout(top_layout)
         
@@ -1837,7 +1837,7 @@ class MainMenuTeacher(QMainWindow):
         self.tests_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.tests_table.setSelectionMode(QTableWidget.SingleSelection)
         self.tests_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        # self.tests_table.itemSelectionChanged.connect(self.on_grades_selected)
+        self.tests_table.itemSelectionChanged.connect(self.on_tests_selected)
         self.tests_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
@@ -1883,28 +1883,10 @@ class MainMenuTeacher(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # дата загрузки
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # срок сдачи
         tests_layout.addWidget(self.tests_table)
+        tests_layout.addSpacing(18)
         
-        # для выбора даты, типа статуса посещения и кнопки добавления 
+        # область для нижней части экрана
         bottom_layout = QHBoxLayout()
-        
-        date_layout = QVBoxLayout()
-        date_label = QLabel("Дата занятия:")
-        date_label.setStyleSheet("font-family: Roboto; color: #333;")
-        date_layout.addWidget(date_label, alignment=Qt.AlignLeft)
-        
-        self.tests_date = QDateEdit()
-        self.tests_date.setFixedSize(120, 30)
-        self.tests_date.setCalendarPopup(True)
-        self.tests_date.setDate(QDate.currentDate())
-        self.tests_date.setStyleSheet("""
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            color: #333;
-            padding: 5px;
-            font-family: Roboto;
-        """)
-        date_layout.addWidget(self.tests_date, alignment=Qt.AlignLeft)
-        bottom_layout.addLayout(date_layout)
         
         # кнопки для просмотра оценок, добавления и удаления тестов
         view_add_del_layout = QHBoxLayout()
@@ -1929,7 +1911,7 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #95a5a6;
             }
         """)
-        # self.view_grade_button.clicked.connect(self.add_grades)
+        self.view_grade_button.clicked.connect(self.view_test_grades)
         self.view_grade_button.setEnabled(False)
         view_add_del_layout.addWidget(self.view_grade_button)
 
@@ -1971,7 +1953,7 @@ class MainMenuTeacher(QMainWindow):
                 background-color: #95a5a6;
             }
         """)
-        # self.del_test_button.clicked.connect(self.add_grades)
+        self.del_test_button.clicked.connect(self.del_tests)
         self.del_test_button.setEnabled(False)
         view_add_del_layout.addWidget(self.del_test_button)
         
@@ -1980,7 +1962,328 @@ class MainMenuTeacher(QMainWindow):
         tests_layout.addLayout(bottom_layout)
 
     def load_tests(self):
-        pass
+        try:
+            selected_group_id = self.tests_group_combo.currentData()
+            tests_date = self.tests_date.date()
+            tests_date_str = tests_date.toString("yyyy-MM-dd")
+            
+            if not selected_group_id:
+                self.tests_table.setRowCount(0)
+                self.selected_test_id = None
+                self.del_test_button.setEnabled(False)
+                self.view_grade_button.setEnabled(False)
+                return
+            
+            cursor = self.conn.cursor()
+            query = """
+                select
+                    t.id_test,
+                    s.subject_name,
+                    convert(varchar, n_c.num) + n_c.letter as group_name,
+                    t_n.[name],
+                    t.upload,
+                    t.deadline
+                from test t
+                inner join test_name t_n on t_n.id_name = t.id_name
+                inner join name_class n_c on n_c.id_name_class = t.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subj_students s_s on s_s.id_user = u.id_user
+                inner join [subject] s on s.id_subject = s_s.id_subject
+                inner join subj_teachers s_t on s_t.id_subject = s.id_subject
+                where s_t.id_user = ? and t.id_name_class = ?
+                order by id_test desc
+            """
+            cursor.execute(query, (self.id_user, selected_group_id))
+            tests_data = cursor.fetchall()
+            
+            # вывод в таблице
+            self.tests_table.setRowCount(len(tests_data))
+            
+            for row, record in enumerate(tests_data):
+                test_id = record[0]
+                subject_name = record[1]
+                group_name = record[2]
+                test_name = record[3]
+                upload_date = record[4]
+                deadline_date = record[5]
+                
+                formatted_upload = upload_date.strftime("%d.%m.%Y")
+                formatted_deadline = deadline_date.strftime("%d.%m.%Y")
+                
+                # предмет
+                subject_item = QTableWidgetItem(subject_name)
+                subject_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
+                subject_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 0, subject_item)
+                
+                # группа
+                group_item = QTableWidgetItem(group_name)
+                group_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 1, group_item)
+                
+                # название теста
+                test_item = QTableWidgetItem(test_name)
+                test_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                test_item.setFlags(test_item.flags() & ~Qt.ItemIsEditable)
+                test_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 2, test_item)
+                
+                # дата загрузки
+                upload_item = QTableWidgetItem(formatted_upload)
+                upload_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                upload_item.setFlags(upload_item.flags() & ~Qt.ItemIsEditable)
+                upload_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 3, upload_item)
+                
+                # срок сдачи
+                deadline_item = QTableWidgetItem(formatted_deadline)
+                deadline_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                deadline_item.setFlags(deadline_item.flags() & ~Qt.ItemIsEditable)
+                deadline_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 4, deadline_item)
+            
+            cursor.close()
+            
+            if len(tests_data) == 0:
+                self.view_grade_button.setEnabled(False)
+                self.del_test_button.setEnabled(False)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось загрузить данные о тестах: {str(e)}")
+            self.tests_table.setRowCount(0)
+            self.view_grade_button.setEnabled(False)
+            self.del_test_button.setEnabled(False)
+
+    def on_tests_selected(self):
+        selected_items = self.tests_table.selectedItems()
+    
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data and 'test_id' in item_data:
+                self.selected_test_id = item_data['test_id']
+                self.view_grade_button.setEnabled(True)
+                self.del_test_button.setEnabled(True)
+            else:
+                self.selected_test_id = None
+                self.view_grade_button.setEnabled(False)
+                self.del_test_button.setEnabled(False)
+        else:
+            self.selected_test_id = None
+            self.view_grade_button.setEnabled(False)
+            self.del_test_button.setEnabled(False)
+
+    def load_groups_for_tests(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.tests_group_combo) # в скобках указан элемент для подстановки
+
+    def view_test_grades(self):
+        try:
+            selected_items = self.tests_table.selectedItems()
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            test_id = item_data['test_id']
+            test_name = item_data['test_name']
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"{test_name}")
+            dialog.setFixedSize(500, 400)
+            dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+            
+            layout = QVBoxLayout()
+            dialog.setLayout(layout)
+            
+            grades_table = QTableWidget()
+            grades_table.setColumnCount(3)
+            grades_table.setHorizontalHeaderLabels(["Ученик", "Оценка", "% выполнения"])
+            grades_table.horizontalHeader().setStretchLastSection(True)
+            grades_table.setSelectionBehavior(QTableWidget.SelectRows)
+            grades_table.setSelectionMode(QTableWidget.SingleSelection)
+            grades_table.setEditTriggers(QTableWidget.NoEditTriggers)
+            grades_table.setStyleSheet("""
+                QTableWidget {
+                    background-color: white;
+                    border: 1px solid #ccc;
+                    border-radius: 5px;
+                    font-family: Roboto;
+                    gridline-color: #eee;
+                    outline: 0;
+                }
+                QTableWidget::item {
+                    padding: 8px;
+                    border-bottom: 1px solid #f0f0f0;
+                }
+                QHeaderView::section {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border: none;
+                }
+                QTableWidget::item:selected {
+                    background-color: #e8f4fc;
+                    color: #2c3e50;
+                }
+                QHeaderView::section:vertical {
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    width: 0px;
+                }
+                QTableWidget::item:focus {
+                    outline: none;
+                    border: none;
+                }
+            """)
+
+            cursor = self.conn.cursor()
+            
+            grades_query = """
+                select
+                    u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                    s_t.grade,
+                    s_t.grade_percent
+                from solved_tests s_t
+                inner join users u on u.id_user = s_t.id_user
+                where s_t.id_test = ?
+                order by fio
+            """
+            cursor.execute(grades_query, (test_id))
+            grades_data = cursor.fetchall()
+            
+            cursor.close()
+            
+            grades_table.setRowCount(len(grades_data))
+            
+            for row, record in enumerate(grades_data):
+                fio = record[0]
+                grade = record[1] if record[1] is not None else "Не оценено"
+                grade_percent = record[2] if record[2] is not None else "0"
+                
+                # фио ученика
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                grades_table.setItem(row, 0, fio_item)
+                
+                # оценка
+                grade_item = QTableWidgetItem(str(grade))
+                grade_item.setFlags(grade_item.flags() & ~Qt.ItemIsEditable)
+                grade_item.setTextAlignment(Qt.AlignCenter)
+                
+                # цвет оценки
+                if grade >= 4:
+                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                elif grade == 3:
+                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                elif grade <= 2:
+                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                
+                grades_table.setItem(row, 1, grade_item)
+                
+                # процент выполнения
+                percent_item = QTableWidgetItem(f"{grade_percent}%")
+                percent_item.setFlags(percent_item.flags() & ~Qt.ItemIsEditable)
+                percent_item.setTextAlignment(Qt.AlignCenter)
+                
+                grades_table.setItem(row, 2, percent_item)
+            
+            grades_table.resizeColumnsToContents()
+            layout.addWidget(grades_table)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить оценки за тест: {str(e)}")
+
+    def del_tests(self): # удаление теста
+        selected_items = self.tests_table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Ошибка", "Тест не выбран")
+            return
+        
+        row = self.tests_table.row(selected_items[0])
+        test_name = self.tests_table.item(row, 2).text()
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Вы уверены, что хотите удалить тест?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            # проверка оценок для удаления
+            check_grades_query = """
+                select count(*) 
+                from solved_tests 
+                where id_test = ?
+            """
+            cursor.execute(check_grades_query, (self.selected_test_id,))
+            has_grades = cursor.fetchone()[0] > 0
+            if has_grades:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    f"Нельзя удалить тест, так как за него уже есть оценки."
+                )
+                cursor.close()
+                return
+            
+            try:
+                test_name_query = """
+                    select id_name
+                    from test
+                    where id_test = ?
+                """
+                cursor.execute(test_name_query, (self.selected_test_id))
+                id_test_name = cursor.fetchone()[0]
+
+                delete_query = """
+                    delete from test_content 
+                    where id_test = ?
+                    delete from test 
+                    where id_test = ?
+                    delete from test_name 
+                    where id_name = ?
+                """ # удаление содержания теста
+                cursor.execute(delete_query, (
+                    self.selected_test_id, self.selected_test_id, id_test_name
+                ))
+                self.conn.commit()
+                
+                QMessageBox.information(
+                    self,
+                    "Успех",
+                    f"Тест '{test_name}' удален."
+                )
+                
+                self.selected_test_id = None
+                self.view_grade_button.setEnabled(False)
+                self.del_test_button.setEnabled(False)
+                
+                self.load_tests()
+                
+            except Exception as e:
+                QMessageBox.critical(
+                self, "Ошибка", f"Не удалось удалить тест: {str(e)}."
+                )
+                
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Ошибка", "Не удалось удалить тест."
+            )
 
     def test_const_open(self):
         self.test_window = TestConstructor(self.id_user, self.fio, self.conn)
