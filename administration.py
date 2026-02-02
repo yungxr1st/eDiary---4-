@@ -164,13 +164,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #21618c;
             }
         """)
-        # self.button_schedule.clicked.connect(self.show_schedule)
+        self.button_groups_subjects.clicked.connect(self.show_groups_subjects)
         group_button_layout.addWidget(self.button_groups_subjects, alignment=Qt.AlignLeft)
 
         group_button_layout.addStretch(2)
 
         self.users()
         self.stats()
+        self.groups_subjects()
 
         self.show_users()
 
@@ -1286,6 +1287,354 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             combo_box.clear()
             combo_box.addItem(f"Ошибка загрузки: {str(e)}")
             combo_box.setEnabled(False)
+
+    def show_groups_subjects(self):
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.groups_subjects_widget)
+
+    def groups_subjects(self):
+        self.groups_subjects_widget = QWidget()
+        groups_subjects_layout = QVBoxLayout()
+        self.groups_subjects_widget.setLayout(groups_subjects_layout)
+        self.groups_subjects_tab = QTabWidget() # вкладки
+        self.tab_groups = QWidget() # вкладка групп
+        self.groups_subjects_tab.addTab(self.tab_groups, "Группы")
+        self.tab_subjects = QWidget() # вкладка предметов
+        self.groups_subjects_tab.addTab(self.tab_subjects, "Предметы")
+
+        gr_sub_label = QLabel("Группы и предметы:")
+        gr_sub_label.setAlignment(Qt.AlignLeft)
+        gr_sub_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        groups_subjects_layout.addWidget(gr_sub_label)
+        groups_subjects_layout.addWidget(self.groups_subjects_tab)
+
+        # --------------------------------------------------- tab-вкладка группы ---------------------------------------------------
+        groups_layout = QHBoxLayout()
+        self.tab_groups.setLayout(groups_layout)
+
+        self.groups_table = QTableWidget()
+        self.groups_table.setFixedSize(300, 400)
+        self.groups_table.setColumnCount(2)
+        self.groups_table.setHorizontalHeaderLabels(["ФИО ученика", "Группа"])
+        self.groups_table.horizontalHeader().setStretchLastSection(True)
+        self.groups_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.groups_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.groups_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # self.groups_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.groups_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.groups_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # фио
+        header.resizeSection(0, 190)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # группа
+        groups_layout.addWidget(self.groups_table, alignment=Qt.AlignCenter)
+        groups_layout.addStretch(1)
+
+        groups_right_layout = QVBoxLayout()
+        groups_layout.addSpacing(21)
+        groups_layout.addLayout(groups_right_layout)
+        groups_layout.addSpacing(20)
+
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        groups_right_layout.addStretch(2)
+        groups_right_layout.addWidget(group_label, alignment=Qt.AlignLeft)
+
+        self.group_combo = QComboBox()
+        self.group_combo.addItems(["Выберите группу"])
+        self.group_combo.setFixedSize(150, 30)
+        self.group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.group_combo.currentIndexChanged.connect(self.load_stats)
+        groups_right_layout.addWidget(self.group_combo, alignment=Qt.AlignLeft)
+        groups_right_layout.addSpacing(15)
+
+        fio_label = QLabel("ФИО ученика:")
+        fio_label.setStyleSheet("font-family: Roboto; color: #333;")
+        groups_right_layout.addWidget(fio_label, alignment=Qt.AlignLeft)
+        
+        self.groups_fio = QLineEdit()
+        self.groups_fio.setFixedSize(230, 35)
+        self.groups_fio.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            padding: 5px;
+            font-family: roboto;
+            font-size: 14px;
+        """)
+        groups_right_layout.addWidget(self.groups_fio, alignment=Qt.AlignLeft)
+        groups_right_layout.addStretch(1)
+
+        groups_button_layout = QHBoxLayout()
+        groups_right_layout.addLayout(groups_button_layout)
+
+        self.add_to_group = QPushButton()
+        self.add_to_group.setText("Добавить в\nгруппу")
+        self.add_to_group.setFixedSize(110, 50)
+        self.add_to_group.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.add_to_group.clicked.connect()
+        self.add_to_group.setEnabled(False)
+        groups_button_layout.addWidget(self.add_to_group)
+        groups_button_layout.addSpacing(10)
+
+        self.del_from_group = QPushButton()
+        self.del_from_group.setText("Удалить из\nгруппы")
+        self.del_from_group.setFixedSize(110, 50)
+        self.del_from_group.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.del_from_group.clicked.connect()
+        self.del_from_group.setEnabled(False)
+        groups_button_layout.addWidget(self.del_from_group)
+        groups_right_layout.addStretch(1)
+        
+        # --------------------------------------------------- tab-вкладка предметы ---------------------------------------------------
+        subjects_layout = QHBoxLayout()
+        self.tab_subjects.setLayout(subjects_layout)
+
+        self.subjects_table = QTableWidget()
+        self.subjects_table.setFixedSize(300, 400)
+        self.subjects_table.setColumnCount(3)
+        self.subjects_table.setHorizontalHeaderLabels(["Группа", "Предмет", "ФИО преподавателя"])
+        self.subjects_table.horizontalHeader().setStretchLastSection(True)
+        self.subjects_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.subjects_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.subjects_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # self.groups_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.subjects_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.subjects_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # группа
+        header.resizeSection(0, 70)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # предмет
+        header.resizeSection(1, 90)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # преподаватель
+        subjects_layout.addWidget(self.subjects_table, alignment=Qt.AlignCenter)
+        subjects_layout.addStretch(1)
+
+        subjects_right_layout = QVBoxLayout()
+        subjects_layout.addSpacing(21)
+        subjects_layout.addLayout(subjects_right_layout)
+        subjects_layout.addSpacing(20)
+
+        subjects_group_label = QLabel("Группа:")
+        subjects_group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        subjects_right_layout.addStretch(1)
+        subjects_right_layout.addWidget(subjects_group_label, alignment=Qt.AlignLeft)
+
+        self.subjects_group_combo = QComboBox()
+        self.subjects_group_combo.addItems(["Выберите группу"])
+        self.subjects_group_combo.setFixedSize(150, 30)
+        self.subjects_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.subjects_group_combo.currentIndexChanged.connect(self.load_stats)
+        subjects_right_layout.addWidget(self.subjects_group_combo, alignment=Qt.AlignLeft)
+        subjects_right_layout.addSpacing(10)
+
+        subject_label = QLabel("Предмет:")
+        subject_label.setStyleSheet("font-family: Roboto; color: #333;")
+        subjects_right_layout.addWidget(subject_label, alignment=Qt.AlignLeft)
+
+        self.subject_combo = QComboBox()
+        self.subject_combo.addItems(["Выберите предмет"])
+        self.subject_combo.setFixedSize(150, 30)
+        self.subject_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.subject_combo.currentIndexChanged.connect(self.load_stats)
+        subjects_right_layout.addWidget(self.subject_combo, alignment=Qt.AlignLeft)
+        subjects_right_layout.addSpacing(10)
+
+        teacher_fio_label = QLabel("ФИО преподавателя:")
+        teacher_fio_label.setStyleSheet("font-family: Roboto; color: #333;")
+        subjects_right_layout.addWidget(teacher_fio_label, alignment=Qt.AlignLeft)
+        
+        self.subject_teacher_fio = QLineEdit()
+        self.subject_teacher_fio.setFixedSize(230, 35)
+        self.subject_teacher_fio.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            padding: 5px;
+            font-family: roboto;
+            font-size: 14px;
+        """)
+        subjects_right_layout.addWidget(self.subject_teacher_fio, alignment=Qt.AlignLeft)
+        subjects_right_layout.addStretch(1)
+
+        subjects_button_layout = QHBoxLayout()
+        subjects_right_layout.addLayout(subjects_button_layout)
+
+        self.add_to_subject = QPushButton()
+        self.add_to_subject.setText("Добавить\nпредмет")
+        self.add_to_subject.setFixedSize(110, 50)
+        self.add_to_subject.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.add_to_subject.clicked.connect()
+        self.add_to_subject.setEnabled(False)
+        subjects_button_layout.addWidget(self.add_to_subject)
+        subjects_button_layout.addSpacing(10)
+
+        self.del_from_subject = QPushButton()
+        self.del_from_subject.setText("Удалить\nпредмет")
+        self.del_from_subject.setFixedSize(110, 50)
+        self.del_from_subject.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.del_from_subject.clicked.connect()
+        self.del_from_subject.setEnabled(False)
+        subjects_button_layout.addWidget(self.del_from_subject)
+        subjects_right_layout.addStretch(1)
 
 
 class EditUserDialog(QDialog): # окно редактирования пользователя
