@@ -464,15 +464,15 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     u.surname + ' ' + LEFT(u.name, 1) + '.' + LEFT(u.patronymic, 1) + '.' as teacher_name,
                     cab.num
                 from schedule s
-                inner join class c ON s.id_class = c.id_class
-                inner join name_class nc ON c.id_name_class = nc.id_name_class
+                inner join name_class nc ON s.id_name_class = nc.id_name_class
                 inner join subject sub ON s.id_subject = sub.id_subject
                 inner join users u ON s.id_user = u.id_user
                 inner join cabinet cab on cab.id_cabinet = s.id_cabinet
-                where c.id_class in (
+                where nc.id_name_class in (
                     select c2.id_class 
                     from class c2 
-                    inner join subj_students ss on c2.id_class = ss.id_user 
+                    inner join subj_students ss on c2.id_class = ss.id_user
+	                inner join name_class on name_class.id_name_class = c2.id_name_class 
                     where ss.id_user = ?
                 )
                 order by 

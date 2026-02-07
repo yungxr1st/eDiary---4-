@@ -646,19 +646,19 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     u.id_user,
                     s.subject_name,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
-                    isnull(t_a.title, '') as attendance_status,
-                    isnull(g.grade, '') as grade,
-                    isnull(t_g.title, '') as type_grade
-                from [subject] s
-                inner join lesson l on l.id_subject = s.id_subject
-                inner join class c on c.id_class = l.id_class
-                inner join name_class n_c on n_c.id_name_class = c.id_name_class
-                inner join users u on u.id_user = c.id_user
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                    isnull(t_a.title, ' ') as attendance_status,
+                    isnull(g.grade, ' ') as grade,
+                    isnull(t_g.title, ' ') as type_grade
+                from lesson l
                 inner join grade g on g.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                where c.id_class = ? and l.date = ?
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subject s on s.id_subject = l.id_subject
+                where n_c.id_name_class = ? and l.date = ?
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
                     t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
@@ -675,6 +675,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 fio = record[2]
                 attendance_status = record[3]
                 grade = str(record[4])
+                if grade == '0':
+                    grade = ''
                 type_grade = record[5]
                 
                 # предмет
@@ -714,13 +716,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 grade_item.setTextAlignment(Qt.AlignCenter)
 
                 # цвет оценки
-                grade_int = int(grade)
-                if grade_int >= 4:
-                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
-                elif grade_int == 3:
-                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
-                elif grade_int <= 2:
-                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                if grade != '':
+                    grade_int = int(grade)
+                    if grade_int >= 4:
+                        grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                    elif grade_int == 3:
+                        grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                    elif grade_int <= 2:
+                        grade_item.setForeground(QColor("#e74c3c"))  # красный
                 
                 self.stats_table.setItem(row, 3, grade_item)
 
@@ -750,19 +753,19 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     u.id_user,
                     s.subject_name,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
-                    isnull(t_a.title, '') as attendance_status,
-                    isnull(g.grade, '') as grade,
-                    isnull(t_g.title, '') as type_grade
-                from [subject] s
-                inner join lesson l on l.id_subject = s.id_subject
-                inner join class c on c.id_class = l.id_class
-                inner join name_class n_c on n_c.id_name_class = c.id_name_class
-                inner join users u on u.id_user = c.id_user
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                    isnull(t_a.title, ' ') as attendance_status,
+                    isnull(g.grade, ' ') as grade,
+                    isnull(t_g.title, ' ') as type_grade
+                from lesson l
                 inner join grade g on g.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                where c.id_class = ? and l.date = ?
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subject s on s.id_subject = l.id_subject
+                where n_c.id_name_class = ? and l.date = ?
                 and (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
                 or u.patronymic like '%{user_fio}%')
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
@@ -781,6 +784,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 fio = record[2]
                 attendance_status = record[3]
                 grade = str(record[4])
+                if grade == '0':
+                    grade = ''
                 type_grade = record[5]
                 
                 # предмет
@@ -820,13 +825,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 grade_item.setTextAlignment(Qt.AlignCenter)
 
                 # цвет оценки
-                grade_int = int(grade)
-                if grade_int >= 4:
-                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
-                elif grade_int == 3:
-                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
-                elif grade_int <= 2:
-                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                if grade != '':
+                    grade_int = int(grade)
+                    if grade_int >= 4:
+                        grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                    elif grade_int == 3:
+                        grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                    elif grade_int <= 2:
+                        grade_item.setForeground(QColor("#e74c3c"))  # красный
                 
                 self.stats_table.setItem(row, 3, grade_item)
 
@@ -854,19 +860,19 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     s.subject_name,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
                     l.date,
-                    isnull(t_a.title, '') as attendance_status,
-                    isnull(g.grade, '') as grade,
-                    isnull(t_g.title, '') as type_grade
-                from [subject] s
-                inner join lesson l on l.id_subject = s.id_subject
-                inner join class c on c.id_class = l.id_class
-                inner join name_class n_c on n_c.id_name_class = c.id_name_class
-                inner join users u on u.id_user = c.id_user
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                    isnull(t_a.title, ' ') as attendance_status,
+                    isnull(g.grade, ' ') as grade,
+                    isnull(t_g.title, ' ') as type_grade
+                from lesson l
                 inner join grade g on g.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                where c.id_class = ?
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subject s on s.id_subject = l.id_subject
+                where n_c.id_name_class = ?
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
                     l.date, t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
@@ -885,6 +891,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 formatted_date = date.strftime("%d.%m.%Y")
                 attendance_status = record[4]
                 grade = str(record[5])
+                if grade == '0':
+                    grade = ''
                 type_grade = record[6]
                 
                 # предмет
@@ -931,13 +939,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 grade_item.setTextAlignment(Qt.AlignCenter)
 
                 # цвет оценки
-                grade_int = int(grade)
-                if grade_int >= 4:
-                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
-                elif grade_int == 3:
-                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
-                elif grade_int <= 2:
-                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                if grade != '':
+                    grade_int = int(grade)
+                    if grade_int >= 4:
+                        grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                    elif grade_int == 3:
+                        grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                    elif grade_int <= 2:
+                        grade_item.setForeground(QColor("#e74c3c"))  # красный
                 
                 self.stats_table.setItem(row, 4, grade_item)
 
@@ -966,19 +975,19 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     s.subject_name,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
                     l.date,
-                    isnull(t_a.title, '') as attendance_status,
-                    isnull(g.grade, '') as grade,
-                    isnull(t_g.title, '') as type_grade
-                from [subject] s
-                inner join lesson l on l.id_subject = s.id_subject
-                inner join class c on c.id_class = l.id_class
-                inner join name_class n_c on n_c.id_name_class = c.id_name_class
-                inner join users u on u.id_user = c.id_user
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                    isnull(t_a.title, ' ') as attendance_status,
+                    isnull(g.grade, ' ') as grade,
+                    isnull(t_g.title, ' ') as type_grade
+                from lesson l
                 inner join grade g on g.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                where c.id_class = ?
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subject s on s.id_subject = l.id_subject
+                where n_c.id_name_class = ?
                 and (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
                 or u.patronymic like '%{user_fio}%')
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
@@ -999,6 +1008,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 formatted_date = date.strftime("%d.%m.%Y")
                 attendance_status = record[4]
                 grade = str(record[5])
+                if grade == '0':
+                    grade = ''
                 type_grade = record[6]
                 
                 # предмет
@@ -1045,13 +1056,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 grade_item.setTextAlignment(Qt.AlignCenter)
 
                 # цвет оценки
-                grade_int = int(grade)
-                if grade_int >= 4:
-                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
-                elif grade_int == 3:
-                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
-                elif grade_int <= 2:
-                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                if grade != '':
+                    grade_int = int(grade)
+                    if grade_int >= 4:
+                        grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                    elif grade_int == 3:
+                        grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                    elif grade_int <= 2:
+                        grade_item.setForeground(QColor("#e74c3c"))  # красный
                 
                 self.stats_table.setItem(row, 4, grade_item)
 
@@ -1255,14 +1267,11 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             cursor = self.conn.cursor()
             
             query = """
-                select distinct 
-                    c.id_class,
-                    nc.num,
-                    nc.letter
-                from schedule s
-                inner join class c on s.id_class = c.id_class
-                inner join name_class nc on c.id_name_class = nc.id_name_class
-                order by nc.num, nc.letter
+                select 
+                    id_name_class,
+                    convert(varchar, num) + letter
+                from name_class
+                order by num, letter
             """
             cursor.execute(query)
             groups_data = cursor.fetchall()
@@ -1273,9 +1282,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 combo_box.addItem("Выберите группу", None)
                 for group in groups_data:
                     class_id = group[0]
-                    class_num = group[1]
-                    class_letter = group[2]
-                    group_name = f"{class_num}{class_letter}"
+                    num_letter = group[1]
+                    group_name = f"{num_letter}"
                     combo_box.addItem(group_name, class_id)
             else:
                 combo_box.addItem("Нет групп")
@@ -1292,6 +1300,12 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.groups_subjects_widget)
+
+        self.load_groups()
+        self.load_subjects()
+        self.load_groups_for_groups()
+        self.load_groups_for_subjects()
+        self.load_subjects_into_combo()
 
     def groups_subjects(self):
         self.groups_subjects_widget = QWidget()
@@ -1328,7 +1342,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.groups_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.groups_table.setSelectionMode(QTableWidget.SingleSelection)
         self.groups_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        # self.groups_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.groups_table.itemSelectionChanged.connect(self.on_groups_selected)
         self.groups_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
@@ -1366,7 +1380,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         header = self.groups_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # фио
-        header.resizeSection(0, 190)
+        header.resizeSection(0, 180)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # группа
         groups_layout.addWidget(self.groups_table, alignment=Qt.AlignCenter)
         groups_layout.addStretch(1)
@@ -1381,10 +1395,10 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         groups_right_layout.addStretch(2)
         groups_right_layout.addWidget(group_label, alignment=Qt.AlignLeft)
 
-        self.group_combo = QComboBox()
-        self.group_combo.addItems(["Выберите группу"])
-        self.group_combo.setFixedSize(150, 30)
-        self.group_combo.setStyleSheet("""
+        self.groups_group_combo = QComboBox()
+        self.groups_group_combo.addItems(["Выберите группу"])
+        self.groups_group_combo.setFixedSize(150, 30)
+        self.groups_group_combo.setStyleSheet("""
             border-radius: 5px;
             border: 1px solid #ccc;
             color: #333;
@@ -1392,7 +1406,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             font-family: Roboto;
         """)
         # self.group_combo.currentIndexChanged.connect(self.load_stats)
-        groups_right_layout.addWidget(self.group_combo, alignment=Qt.AlignLeft)
+        groups_right_layout.addWidget(self.groups_group_combo, alignment=Qt.AlignLeft)
         groups_right_layout.addSpacing(15)
 
         fio_label = QLabel("ФИО ученика:")
@@ -1435,7 +1449,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.add_to_group.clicked.connect()
+        self.add_to_group.clicked.connect(self.add_user_to_group)
         self.add_to_group.setEnabled(False)
         groups_button_layout.addWidget(self.add_to_group)
         groups_button_layout.addSpacing(10)
@@ -1461,10 +1475,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.del_from_group.clicked.connect()
+        self.del_from_group.clicked.connect(self.del_user_from_group)
         self.del_from_group.setEnabled(False)
         groups_button_layout.addWidget(self.del_from_group)
         groups_right_layout.addStretch(1)
+
+        self.selected_groups_user = None
+        self.selected_subjects_user = None
         
         # --------------------------------------------------- tab-вкладка предметы ---------------------------------------------------
         subjects_layout = QHBoxLayout()
@@ -1478,7 +1495,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.subjects_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.subjects_table.setSelectionMode(QTableWidget.SingleSelection)
         self.subjects_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        # self.groups_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.subjects_table.itemSelectionChanged.connect(self.on_subjects_selected)
         self.subjects_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
@@ -1585,8 +1602,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         subjects_right_layout.addLayout(subjects_button_layout)
 
         self.add_to_subject = QPushButton()
-        self.add_to_subject.setText("Добавить\nпредмет")
-        self.add_to_subject.setFixedSize(110, 50)
+        self.add_to_subject.setText("Прикрепить\nпреподавателя")
+        self.add_to_subject.setFixedSize(120, 50)
         self.add_to_subject.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -1605,14 +1622,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.add_to_subject.clicked.connect()
+        self.add_to_subject.clicked.connect(self.add_teacher_to_group)
         self.add_to_subject.setEnabled(False)
         subjects_button_layout.addWidget(self.add_to_subject)
         subjects_button_layout.addSpacing(10)
 
         self.del_from_subject = QPushButton()
-        self.del_from_subject.setText("Удалить\nпредмет")
-        self.del_from_subject.setFixedSize(110, 50)
+        self.del_from_subject.setText("Открепить\nпреподавателя")
+        self.del_from_subject.setFixedSize(120, 50)
         self.del_from_subject.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -1631,10 +1648,548 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.del_from_subject.clicked.connect()
+        self.del_from_subject.clicked.connect(self.del_teacher_from_group)
         self.del_from_subject.setEnabled(False)
         subjects_button_layout.addWidget(self.del_from_subject)
         subjects_right_layout.addStretch(1)
+
+    def load_groups(self):
+        try:
+            cursor = self.conn.cursor()
+            
+            query = ("""
+                select
+                    u.id_user,
+                    u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                    isnull(convert(varchar, n_c.num) + n_c.letter, 'Не назначена') as [group],
+                    c.id_class
+                from users u
+                left join class c on c.id_user = u.id_user
+                left join name_class n_c on n_c.id_name_class = c.id_name_class
+                where u.id_role = 1
+            """)
+            cursor.execute(query)
+            groups_data = cursor.fetchall()
+            
+            self.groups_table.setRowCount(len(groups_data))
+            
+            for row, record in enumerate(groups_data):
+                user_id = record[0]
+                fio = record[1]
+                group = record[2]
+                id_group = record[3]
+                
+                # фамилия
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setData(Qt.UserRole, {'user_id': user_id, 'fio': fio, 'id_group': id_group})
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.groups_table.setItem(row, 0, fio_item)
+
+                # имя
+                group_item = QTableWidgetItem(group)
+                group_item.setData(Qt.UserRole, {'user_id': user_id, 'fio': fio, 'id_group': id_group})
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.groups_table.setItem(row, 1, group_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить список учеников и групп: {str(e)}")
+
+    def load_groups_for_groups(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.groups_group_combo) # в скобках указан элемент для подстановки
+
+    def on_groups_selected(self): # выбор строки в таблице
+        selected_items = self.groups_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            if item_data['id_group'] == None:
+                item_data['id_group'] = 0
+            
+            if (item_data and 'user_id' in item_data 
+                    and 'fio' in item_data and 'id_group' in item_data):
+                self.selected_groups_user = item_data['user_id']
+                self.groups_fio.setText(item_data['fio'])
+                # self.groups_group_combo.setCurrentIndex(item_data['id_group'])
+                self.add_to_group.setEnabled(True)
+                self.del_from_group.setEnabled(True)
+            else:
+                self.selected_groups_user = None
+                self.groups_fio.setText = None
+                self.add_to_group.setEnabled(False)
+                self.del_from_group.setEnabled(False)
+        else:
+            self.selected_groups_user = None
+            self.groups_fio.setText = None
+            self.add_to_group.setEnabled(False)
+            self.del_from_group.setEnabled(False)
+
+    def add_user_to_group(self): # добавление ученика в группу
+        if self.groups_group_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+            
+        if not self.groups_fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО ученика")
+            return
+        
+        fio_cursor = self.conn.cursor()
+        fio_query = """
+            select id_user
+            from users u
+            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            and id_role = 1
+        """
+        fio_cursor.execute(fio_query, self.groups_fio.text())
+        fio = fio_cursor.fetchone()
+        fio_cursor.close()
+
+        if not fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО существующего ученика")
+            return
+        
+        group_cursor = self.conn.cursor()
+        group_query = """
+            select
+                c.id_class
+            from class c
+            inner join name_class n_c on n_c.id_name_class = c.id_name_class
+            inner join users u on u.id_user = c.id_user
+            where c.id_user = ?
+            and c.id_name_class = ?
+        """
+        group_cursor.execute(group_query, (self.selected_groups_user, self.groups_group_combo.currentData()))
+        group = group_cursor.fetchone()
+        group_cursor.close()
+
+        if group:
+            QMessageBox.warning(self, "Ошибка", "Ученик уже состоит в этой группе")
+            return
+            
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                insert into class(id_name_class, id_user)
+                values(?, ?)
+            """
+            cursor.execute(query, (
+                self.groups_group_combo.currentData(),
+                self.selected_groups_user
+            ))
+
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Ученик добавлен в группу")
+            
+            self.load_groups()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось добавить ученика в группу: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def del_user_from_group(self):
+        if self.groups_group_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+            
+        if not self.groups_fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО ученика")
+            return
+        
+        fio_cursor = self.conn.cursor()
+        fio_query = """
+            select id_user
+            from users u
+            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+        """
+        fio_cursor.execute(fio_query, self.groups_fio.text())
+        fio = fio_cursor.fetchone()
+        fio_cursor.close()
+
+        if not fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО существующего ученика")
+            return
+        
+        group_cursor = self.conn.cursor()
+        group_query = """
+            select
+                c.id_class
+            from class c
+            inner join name_class n_c on n_c.id_name_class = c.id_name_class
+            inner join users u on u.id_user = c.id_user
+            where c.id_user = ?
+            and c.id_name_class = ?
+        """
+        group_cursor.execute(group_query, (self.selected_groups_user, self.groups_group_combo.currentData()))
+        group = group_cursor.fetchone()
+        group_cursor.close()
+
+        if not group:
+            QMessageBox.warning(self, "Ошибка", "Ученик не состоит в данной группе")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            f"Вы уверены, что хотите удалить {self.groups_fio.text()} "
+            f"из группы ({self.groups_group_combo.currentText()})?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            delete_query = """
+                delete from class
+                where id_user = ? and id_name_class = ?
+            """
+            cursor.execute(delete_query, (self.selected_groups_user, self.groups_group_combo.currentData()))
+            self.conn.commit()
+            
+            QMessageBox.information(
+                self, 
+                "Успех", 
+                f"Ученик успешно удален"
+            )
+            
+            # очистка полей
+            # self.question_text_edit.clear()
+            # self.validate_homework_text()
+            # self.load_homework()
+
+            cursor.close()
+            self.load_groups()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить ученика: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def load_subjects(self):
+        try:
+            cursor = self.conn.cursor()
+            
+            query = ("""
+                select
+                    s_t.id,
+                    s_t.id_name_class,
+                    s_t.id_subject,
+                    s_t.id_user,
+                    isnull(convert(varchar, n_c.num) + n_c.letter, 'Не назначена') as [group],
+                    isnull(s.subject_name, 'Не назначен') as subject_name,
+                    isnull(u.surname + ' ' + u.[name] + ' ' + u.patronymic, 'Не назначен') as fio
+                from subj_teachers s_t
+                left join users u on u.id_user = s_t.id_user
+                left join subject s on s.id_subject = s_t.id_subject
+                right join name_class n_c on n_c.id_name_class = s_t.id_name_class
+            """) # переписать запрос
+            cursor.execute(query)
+            subject_data = cursor.fetchall()
+            
+            self.subjects_table.setRowCount(len(subject_data))
+            
+            for row, record in enumerate(subject_data):
+                id_s_t = record[0]
+                id_group = record[1]
+                id_subject = record[2]
+                id_user = record[3]
+                name_group = record[4]
+                subject_name = record[5]
+                fio = record[6]
+                
+                # группа
+                group_item = QTableWidgetItem(name_group)
+                group_item.setData(Qt.UserRole, {
+                    'id_s_t': id_s_t,
+                    'id_group': id_group,
+                    'id_subject': id_subject,
+                    'id_user': id_user,
+                    'fio': fio
+                })
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.subjects_table.setItem(row, 0, group_item)
+
+                # предмет
+                subject_item = QTableWidgetItem(subject_name)
+                subject_item.setData(Qt.UserRole, {
+                    'id_s_t': id_s_t,
+                    'id_group': id_group,
+                    'id_subject': id_subject,
+                    'id_user': id_user,
+                    'fio': fio
+                })
+                subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
+                subject_item.setTextAlignment(Qt.AlignCenter)
+                self.subjects_table.setItem(row, 1, subject_item)
+
+                # фио преподавателя
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setData(Qt.UserRole, {
+                    'id_s_t': id_s_t,
+                    'id_group': id_group,
+                    'id_subject': id_subject,
+                    'id_user': id_user,
+                    'fio': fio
+                })
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.subjects_table.setItem(row, 2, fio_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить список учеников и групп: {str(e)}")
+
+    def on_subjects_selected(self): # выбор строки в таблице
+        selected_items = self.subjects_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            if item_data['id_group'] == None:
+                item_data['id_group'] = 0
+            
+            if (item_data and 'id_s_t' in item_data
+                    and 'id_group' in item_data 
+                    and 'id_subject' in item_data
+                    and 'id_user' in item_data
+                    and 'fio' in item_data):
+                self.selected_subjects_user = item_data['id_user']
+                self.subject_teacher_fio.setText(item_data['fio'])
+                # self.groups_group_combo.setCurrentIndex(item_data['id_group'])
+                self.add_to_subject.setEnabled(True)
+                self.del_from_subject.setEnabled(True)
+            else:
+                self.selected_subjects_user = None
+                self.subject_teacher_fio.setText = None
+                self.add_to_subject.setEnabled(False)
+                self.del_from_subject.setEnabled(False)
+        else:
+            self.selected_subjects_user = None
+            self.subject_teacher_fio.setText = None
+            self.add_to_subject.setEnabled(False)
+            self.del_from_subject.setEnabled(False)
+
+    def add_teacher_to_group(self): # добавление преподавателя к группе и предмету
+        if self.subjects_group_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+        
+        if self.subject_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите предмет")
+            return
+            
+        if not self.subject_teacher_fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО преподавателя")
+            return
+        
+        fio_cursor = self.conn.cursor()
+        fio_query = """
+            select id_user
+            from users u
+            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            and id_role = 2
+        """
+        fio_cursor.execute(fio_query, self.subject_teacher_fio.text())
+        fio = fio_cursor.fetchone()
+        fio_cursor.close()
+
+        if not fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО существующего преподавателя")
+            return
+        
+        subject_group_cursor = self.conn.cursor()
+        group_query = """
+            select
+                s_t.id
+            from subj_teachers s_t
+            inner join [subject] s on s.id_subject = s_t.id_subject
+            inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+            inner join users u on u.id_user = s_t.id_user
+            where s_t.id_subject = ? and s_t.id_user = ?
+            and s_t.id_name_class = ?
+        """
+        subject_group_cursor.execute(group_query, (
+            self.subject_combo.currentData(),
+            self.selected_subjects_user,
+            self.subjects_group_combo.currentData()
+        ))
+        subject_group = subject_group_cursor.fetchone()
+        subject_group_cursor.close()
+
+        if subject_group:
+            QMessageBox.warning(self, "Ошибка", "Преподаватель уже прикреплен на предмет в этой группе")
+            return
+            
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                insert into subj_teachers(id_subject, id_user, id_name_class)
+                values(?, ?, ?)
+            """
+            cursor.execute(query, (
+                self.subject_combo.currentData(),
+                self.selected_subjects_user,
+                self.subjects_group_combo.currentData()
+            ))
+
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Преподаватель прикреплен на предмет у группы")
+            
+            self.load_subjects()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось прикрепить преподавателя на предмет у группы: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def del_teacher_from_group(self): # удаление преподавателя у группы и предмета
+        if self.subjects_group_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+        
+        if self.subject_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите предмет")
+            return
+            
+        if not self.subject_teacher_fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО преподавателя")
+            return
+        
+        fio_cursor = self.conn.cursor()
+        fio_query = """
+            select id_user
+            from users u
+            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            and id_role = 2
+        """
+        fio_cursor.execute(fio_query, self.subject_teacher_fio.text())
+        fio = fio_cursor.fetchone()
+        fio_cursor.close()
+
+        if not fio:
+            QMessageBox.warning(self, "Ошибка", "Укажите ФИО существующего преподавателя")
+            return
+        
+        subject_group_cursor = self.conn.cursor()
+        group_query = """
+            select
+                s_t.id
+            from subj_teachers s_t
+            inner join [subject] s on s.id_subject = s_t.id_subject
+            inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+            inner join users u on u.id_user = s_t.id_user
+            where s_t.id_subject = ? and s_t.id_user = ?
+            and s_t.id_name_class = ?
+        """
+        subject_group_cursor.execute(group_query, (
+            self.subject_combo.currentData(),
+            self.selected_subjects_user,
+            self.subjects_group_combo.currentData()
+        ))
+        subject_group = subject_group_cursor.fetchone()
+        subject_group_cursor.close()
+
+        if not subject_group:
+            QMessageBox.warning(self, "Ошибка", "Преподаватель не прикреплен к предмету в этой группе")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            f"Вы уверены, что хотите открепить {self.subject_teacher_fio.text()} "
+            f"от группы ({self.subjects_group_combo.currentText()}, "
+            f"{self.subject_combo.currentText()})?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            delete_query = """
+                delete from subj_teachers
+                where id_subject = ? and id_user = ?
+                and id_name_class = ?
+            """
+            cursor.execute(delete_query, (
+                self.subject_combo.currentData(),
+                self.selected_subjects_user,
+                self.subjects_group_combo.currentData()
+            ))
+            self.conn.commit()
+            
+            QMessageBox.information(
+                self, 
+                "Успех", 
+                f"Преподаватель успешно откреплен от группы и предмета"
+            )
+            
+            # очистка полей
+            # self.question_text_edit.clear()
+            # self.validate_homework_text()
+            # self.load_homework()
+
+            cursor.close()
+            self.load_subjects()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось открепить преподавателя от группы и предмета: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def load_groups_for_subjects(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.subjects_group_combo) # в скобках указан элемент для подстановки
+
+    def load_subjects_into_combo(self): # загрузка предметов
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select
+                    id_subject,
+                    subject_name
+                from [subject]
+                order by subject_name
+            """
+            cursor.execute(query)
+            groups_data = cursor.fetchall()
+            
+            self.subject_combo.clear()
+            
+            if groups_data:
+                self.subject_combo.addItem("Выберите предмет", None)
+                for group in groups_data:
+                    id_subject = group[0]
+                    subject_name = group[1]
+                    group_name = f"{subject_name}"
+                    self.subject_combo.addItem(group_name, id_subject)
+            else:
+                self.subject_combo.addItem("Нет предметов")
+                self.subject_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.subject_combo.clear()
+            self.subject_combo.addItem(f"Ошибка загрузки: {str(e)}")
+            self.subject_combo.setEnabled(False)
 
 
 class EditUserDialog(QDialog): # окно редактирования пользователя

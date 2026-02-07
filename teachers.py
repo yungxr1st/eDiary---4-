@@ -264,8 +264,7 @@ class MainMenuTeacher(QMainWindow):
                 select 
                     s.day_of_week, sub.subject_name, nc.num, nc.letter, cab.num
                 from schedule s
-                inner join class c ON s.id_class = c.id_class
-                inner join name_class nc ON c.id_name_class = nc.id_name_class
+                inner join name_class nc ON s.id_name_class = nc.id_name_class
                 inner join subject sub ON s.id_subject = sub.id_subject
                 inner join cabinet cab on cab.id_cabinet = s.id_cabinet
                 where s.id_user = ?
@@ -577,7 +576,7 @@ class MainMenuTeacher(QMainWindow):
                     e.deadline
                 from exercise e
                 inner join subject s on s.id_subject = e.id_subject
-                where e.id_class = ?
+                where e.id_name_class = ?
                 order by e.deadline desc
             """)
 
@@ -774,7 +773,7 @@ class MainMenuTeacher(QMainWindow):
                 select distinct s.id_subject
                 from schedule sch
                 inner join subject s on sch.id_subject = s.id_subject
-                where sch.id_user = ? and sch.id_class = ?
+                where sch.id_user = ? and sch.id_name_class = ?
             """
             cursor.execute(subject_query, (self.id_user, selected_group_id))
             subject_data = cursor.fetchone()
@@ -787,7 +786,7 @@ class MainMenuTeacher(QMainWindow):
             subject_id = subject_data[0]
             
             insert_query = """
-                insert into exercise (id_subject, id_class, exercise, upload, deadline)
+                insert into exercise (id_subject, id_name_class, exercise, upload, deadline)
                 values (?, ?, ?, GETDATE(), ?)
             """
             
@@ -859,14 +858,12 @@ class MainMenuTeacher(QMainWindow):
             cursor = self.conn.cursor()
 
             query = """
-                select distinct
-                    nc.id_name_class,
-                    nc.num,
-                    nc.letter
-                from name_class nc
-                order by nc.num, nc.letter
+                select 
+                    id_name_class,
+                    convert(varchar, num) + letter
+                from name_class
+                order by num, letter
             """
-            
             cursor.execute(query)
             groups_data = cursor.fetchall()
             
@@ -876,9 +873,8 @@ class MainMenuTeacher(QMainWindow):
                 self.group_combo.addItem("Выберите группу", None)
                 for group in groups_data:
                     class_id = group[0]
-                    class_num = group[1]
-                    class_letter = group[2]
-                    group_name = f"{class_num}{class_letter}"
+                    num_letter = group[1]
+                    group_name = f"{num_letter}"
                     self.group_combo.addItem(group_name, class_id)
             else:
                 self.group_combo.addItem("Нет доступных групп")
@@ -1106,21 +1102,22 @@ class MainMenuTeacher(QMainWindow):
             cursor = self.conn.cursor()
             query = """
                 select 
-                    sub.id_subject,
-                    sub.subject_name,
+                    s.id_subject,
+                    s.subject_name,
                     u.id_user,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
-                    isnull(ta.title, '') as attendance_status
-                from subj_students ss
-                inner join users u on ss.id_user = u.id_user
-                inner join subject sub on ss.id_subject = sub.id_subject
-                inner join schedule sch on sch.id_subject = sub.id_subject
-                inner join lesson l on l.id_subject = sub.id_subject
-                inner join attendance att on att.id_lesson = l.id_lesson
-                inner join type_attendance ta on att.id_type_att = ta.id_type_att
-                where sch.id_user = ? and sch.id_class = ? and l.date = ?
-                group by sub.id_subject, sub.subject_name, u.id_user, u.surname, u.name, u.patronymic, ta.title
-                order by sub.subject_name, u.surname, u.name, u.patronymic
+                    isnull(t_a.title, '') as attendance_status
+                from lesson l
+                inner join attendance a on a.id_lesson = l.id_lesson
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subject s on s.id_subject = l.id_subject
+                inner join schedule sch on sch.id_name_class = n_c.id_name_class
+                where sch.id_user = ? and sch.id_name_class = ? and l.date = ?
+                group by s.id_subject, s.subject_name, u.id_user, u.surname, u.name, u.patronymic, t_a.title
+                order by s.subject_name, u.surname, u.name, u.patronymic
             """
             cursor.execute(query, (self.id_user, selected_group_id, attendance_date_str))
             attendance_data = cursor.fetchall()
@@ -1181,19 +1178,26 @@ class MainMenuTeacher(QMainWindow):
         try:
             cursor = self.conn.cursor()
             
+            # query = """
+            #     select distinct 
+            #         c.id_class,
+            #         convert(varchar, nc.num) + nc.letter as [group]
+            #     from schedule s
+            #     inner join class c on s.id_name_class = c.id_name_class
+            #     inner join name_class nc on c.id_name_class = nc.id_name_class
+            #     where s.id_user = ?
+            #     order by [group]
+            # """
+
             query = """
-                select distinct 
-                    c.id_class,
-                    nc.num,
-                    nc.letter
-                from schedule s
-                inner join class c on s.id_class = c.id_class
-                inner join name_class nc on c.id_name_class = nc.id_name_class
-                where s.id_user = ?
-                order by nc.num, nc.letter
+                select 
+                    id_name_class,
+                    convert(varchar, num) + letter
+                from name_class
+                order by num, letter
             """
-            
-            cursor.execute(query, (self.id_user,))
+            # cursor.execute(query, (self.id_user,))
+            cursor.execute(query)
             groups_data = cursor.fetchall()
             
             combo_box.clear()
@@ -1202,9 +1206,8 @@ class MainMenuTeacher(QMainWindow):
                 combo_box.addItem("Выберите группу", None)
                 for group in groups_data:
                     class_id = group[0]
-                    class_num = group[1]
-                    class_letter = group[2]
-                    group_name = f"{class_num}{class_letter}"
+                    num_letter = group[1]
+                    group_name = f"{num_letter}"
                     combo_box.addItem(group_name, class_id)
             else:
                 combo_box.addItem("Нет групп")
@@ -1291,7 +1294,7 @@ class MainMenuTeacher(QMainWindow):
             lesson_query = """
                 select id_lesson 
                 from lesson 
-                where id_subject = ? and id_class = ? and date = ?
+                where id_subject = ? and id_name_class = ? and date = ?
             """
             cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, attendance_date_str))
             lesson_data = cursor.fetchone()
@@ -1563,22 +1566,23 @@ class MainMenuTeacher(QMainWindow):
             query = """
                 select 
                     g.id_grade,
-                    sub.id_subject,
-                    sub.subject_name,
+                    s.id_subject,
+                    s.subject_name,
                     g.id_user,
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
-                    isnull(g.grade, '') as grade,
-                    isnull(t_g.title, '') as type_grade
+                    isnull(g.grade, ' ') as grade,
+                    isnull(t_g.title, ' ') as type_grade
                 from grade g
-                inner join lesson l on l.id_lesson = g.id_lesson
-                inner join subject sub on sub.id_subject = l.id_subject
                 inner join users u on u.id_user = g.id_user
                 inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                inner join schedule sch on sch.id_subject = sub.id_subject
-                where sch.id_user = ? and sch.id_class = ? and l.date = ?
-                group by g.id_grade, sub.id_subject, sub.subject_name, g.id_user, 
+                inner join lesson l on l.id_lesson = g.id_lesson
+                inner join subject s on s.id_subject = l.id_subject
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                inner join schedule sch on sch.id_name_class = n_c.id_name_class
+                where sch.id_user = ? and sch.id_name_class = ? and l.date = ?
+                group by g.id_grade, s.id_subject, s.subject_name, g.id_user, 
                     u.surname, u.name, u.patronymic, g.grade, g.id_type_gr, t_g.title
-                order by sub.subject_name, u.surname, u.name, u.patronymic
+                order by s.subject_name, u.surname, u.name, u.patronymic
             """
             cursor.execute(query, (self.id_user, selected_group_id, grades_date_str))
             grades_data = cursor.fetchall()
@@ -1593,6 +1597,8 @@ class MainMenuTeacher(QMainWindow):
                 student_id = record[3]
                 fio = record[4]
                 grade = str(record[5])
+                if grade == '0':
+                    grade = ''
                 type_grade = record[6]
                 
                 # предмет
@@ -1622,13 +1628,14 @@ class MainMenuTeacher(QMainWindow):
                 grade_item.setTextAlignment(Qt.AlignCenter)
 
                 # цвет оценки
-                grade_int = int(grade)
-                if grade_int >= 4:
-                    grade_item.setForeground(QColor("#27ae60"))  # зеленый
-                elif grade_int == 3:
-                    grade_item.setForeground(QColor("#f39c12"))  # оранжевый
-                elif grade_int <= 2:
-                    grade_item.setForeground(QColor("#e74c3c"))  # красный
+                if grade != '':
+                    grade_int = int(grade)
+                    if grade_int >= 4:
+                        grade_item.setForeground(QColor("#27ae60"))  # зеленый
+                    elif grade_int == 3:
+                        grade_item.setForeground(QColor("#f39c12"))  # оранжевый
+                    elif grade_int <= 2:
+                        grade_item.setForeground(QColor("#e74c3c"))  # красный
                 
                 self.grades_table.setItem(row, 2, grade_item)
 
@@ -1727,7 +1734,7 @@ class MainMenuTeacher(QMainWindow):
             lesson_query = """
                 select id_lesson 
                 from lesson 
-                where id_subject = ? and id_class = ? and date = ?
+                where id_subject = ? and id_name_class = ? and date = ?
             """
             cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, grades_date_str))
             lesson_data = cursor.fetchone()
