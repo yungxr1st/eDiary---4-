@@ -118,7 +118,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #21618c;
             }
         """)
-        # self.button_homework.clicked.connect(self.show_homework)
+        self.button_schedule.clicked.connect(self.show_schedule)
         group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
         group_button_layout.addSpacing(5)
 
@@ -172,6 +172,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.users()
         self.stats()
         self.groups_subjects()
+        self.schedule()
 
         self.show_users()
 
@@ -1268,10 +1269,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             
             query = """
                 select 
-                    id_name_class,
-                    convert(varchar, num) + letter
-                from name_class
-                order by num, letter
+                    n_c.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter,
+                    s.subject_name
+                from name_class n_c
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join subject s on s.id_subject = s_t.id_subject
+                order by n_c.num, n_c.letter
             """
             cursor.execute(query)
             groups_data = cursor.fetchall()
@@ -1966,7 +1970,12 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     and 'id_user' in item_data
                     and 'fio' in item_data):
                 self.selected_subjects_user = item_data['id_user']
-                self.subject_teacher_fio.setText(item_data['fio'])
+                if item_data['fio'] == "Не назначен":
+                    self.subject_teacher_fio.clear()
+                    self.subject_teacher_fio.setPlaceholderText(item_data['fio'])
+                else:
+                    self.subject_teacher_fio.clear()
+                    self.subject_teacher_fio.setText(item_data['fio'])
                 # self.groups_group_combo.setCurrentIndex(item_data['id_group'])
                 self.add_to_subject.setEnabled(True)
                 self.del_from_subject.setEnabled(True)
@@ -2017,12 +2026,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             inner join [subject] s on s.id_subject = s_t.id_subject
             inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
             inner join users u on u.id_user = s_t.id_user
-            where s_t.id_subject = ? and s_t.id_user = ?
+            where s_t.id_subject = ? 
+            and u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
             and s_t.id_name_class = ?
         """
         subject_group_cursor.execute(group_query, (
             self.subject_combo.currentData(),
-            self.selected_subjects_user,
+            self.subject_teacher_fio.text(),
             self.subjects_group_combo.currentData()
         ))
         subject_group = subject_group_cursor.fetchone()
@@ -2036,12 +2046,17 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             cursor = self.conn.cursor()
             
             query = """
+                declare @id_user int;
+                select @id_user = id_user
+                from users u
+                where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+                and u.id_role = 2;
                 insert into subj_teachers(id_subject, id_user, id_name_class)
-                values(?, ?, ?)
+                values(?, @id_user, ?)
             """
             cursor.execute(query, (
+                self.subject_teacher_fio.text(),
                 self.subject_combo.currentData(),
-                self.selected_subjects_user,
                 self.subjects_group_combo.currentData()
             ))
 
@@ -2155,7 +2170,38 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 self.conn.rollback()
 
     def load_groups_for_subjects(self): # выбор элемента для загрузки групп
-        self.load_groups_into_combo(self.subjects_group_combo) # в скобках указан элемент для подстановки
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select 
+                    n_c.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter
+                from name_class n_c
+                order by n_c.num, n_c.letter
+            """
+            cursor.execute(query)
+            groups_data = cursor.fetchall()
+            
+            self.subjects_group_combo.clear()
+            
+            if groups_data:
+                self.subjects_group_combo.addItem("Выберите группу", None)
+                for group in groups_data:
+                    class_id = group[0]
+                    num_letter = group[1]
+                    group_name = f"{num_letter}"
+                    self.subjects_group_combo.addItem(group_name, class_id)
+            else:
+                self.subjects_group_combo.addItem("Нет групп")
+                self.subjects_group_combo.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.subjects_group_combo.clear()
+            self.subjects_group_combo.addItem(f"Ошибка загрузки: {str(e)}")
+            self.subjects_group_combo.setEnabled(False)
 
     def load_subjects_into_combo(self): # загрузка предметов
         try:
@@ -2190,6 +2236,502 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             self.subject_combo.clear()
             self.subject_combo.addItem(f"Ошибка загрузки: {str(e)}")
             self.subject_combo.setEnabled(False)
+
+    def show_schedule(self):
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.schedule_widget)
+
+        self.create_empty_schedule_table()
+        self.load_groups_for_schedule()
+        self.load_cabinets_for_schedule()
+
+    def schedule(self):
+        self.schedule_widget = QWidget()
+        schedule_layout = QVBoxLayout()
+        self.schedule_widget.setLayout(schedule_layout)
+
+        schedule_label = QLabel("Составление расписания:")
+        schedule_label.setAlignment(Qt.AlignLeft)
+        schedule_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        schedule_layout.addWidget(schedule_label)
+
+        top_layout = QHBoxLayout() # верхняя область
+        schedule_layout.addLayout(top_layout)
+        group_layout = QVBoxLayout() # область для группы и названия предмета
+        top_layout.addLayout(group_layout)
+        day_layout = QVBoxLayout() # область для дня недели
+
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        group_layout.addWidget(group_label, alignment=Qt.AlignLeft)
+        
+        self.schedule_group_combo = QComboBox()
+        self.schedule_group_combo.addItems(["Выберите группу"])
+        self.schedule_group_combo.setCurrentIndex(0)
+        self.schedule_group_combo.setFixedSize(120, 30)
+        self.schedule_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.schedule_group_combo.setCurrentIndex(0)
+        self.schedule_group_combo.currentIndexChanged.connect(self.load_schedule)
+        self.schedule_group_combo.currentIndexChanged.connect(self.load_subject_name_for_schedule)
+        self.schedule_group_combo.currentIndexChanged.connect(self.load_teachers_for_schedule)
+        group_layout.addWidget(self.schedule_group_combo, alignment=Qt.AlignLeft)
+
+        self.schedule_subject = QLabel()
+        self.schedule_subject.setText("Предмет у группы")
+        self.schedule_subject.setStyleSheet("""
+            font-family: Roboto;
+            font-size: 12px;
+            color: #333;
+        """)
+        top_layout.addWidget(self.schedule_subject, alignment=Qt.AlignLeft)
+
+        day_label = QLabel("День недели:")
+        day_label.setStyleSheet("font-family: Roboto; color: #333;")
+        top_layout.addLayout(day_layout)
+        day_layout.addWidget(day_label, alignment=Qt.AlignLeft)
+        
+        self.schedule_day_combo = QComboBox()
+        self.schedule_day_combo.addItems([
+            "Выберите день",
+            "Понедельник",
+            "Вторник",
+            "Среда",
+            "Четверг",
+            "Пятница"
+        ])
+        self.schedule_day_combo.setCurrentIndex(0)
+        self.schedule_day_combo.setFixedSize(120, 30)
+        self.schedule_day_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.schedule_day_combo.currentIndexChanged.connect(self.load_schedule)
+        day_layout.addWidget(self.schedule_day_combo, alignment=Qt.AlignLeft)
+
+        self.num_label = QLabel()
+        self.num_label.setText("Номер занятия:  ")
+        self.num_label.setStyleSheet("""
+            font-family: Roboto;
+            font-size: 12px;
+            color: #333;
+        """)
+        top_layout.addWidget(self.num_label, alignment=Qt.AlignLeft)
+        
+        # для таблицы
+        self.schedule_table = QTableWidget()
+        self.schedule_table.setFixedSize(600, 337)
+        self.schedule_table.setColumnCount(5)
+        self.schedule_table.setHorizontalHeaderLabels(["Номер занятия", "Группа", "Предмет", "Преподаватель", "Кабинет"])
+        self.schedule_table.horizontalHeader().setStretchLastSection(True)
+        self.schedule_table.verticalHeader().setDefaultSectionSize(60)
+        self.schedule_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.schedule_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.schedule_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.schedule_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.schedule_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.schedule_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # номер занятия
+        header.resizeSection(0, 110)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # группа
+        header.resizeSection(1, 70)
+        header.setSectionResizeMode(2, QHeaderView.Fixed) # предмет
+        header.resizeSection(2, 120)
+        header.setSectionResizeMode(3, QHeaderView.Fixed) # фио преподавателя
+        header.resizeSection(3, 180)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # кабинет
+        schedule_layout.addWidget(self.schedule_table)
+        schedule_layout.addStretch(1)
+
+        # для выбора фио преподавателя, номера занятия, кабинета, и кнопок
+        bottom_layout = QHBoxLayout()
+        schedule_layout.addLayout(bottom_layout)
+        teacher_layout = QVBoxLayout() # область для фио преподавателя
+        bottom_layout.addLayout(teacher_layout)
+        num_layout = QVBoxLayout() # область для номера занятия и номера кабинета
+        bottom_layout.addLayout(num_layout)
+        bottom_layout.addStretch(1)
+        buttons_layout = QHBoxLayout() # область для кнопок взаимодействия
+        bottom_layout.addLayout(buttons_layout)
+
+        fio_text = QLabel("ФИО преподавателя")
+        fio_text.setStyleSheet("font-family: Roboto; color: #333;")
+        teacher_layout.addWidget(fio_text, alignment=Qt.AlignLeft)
+
+        self.teacher_combo = QComboBox()
+        self.teacher_combo.addItems(["Выберите преподавателя"])
+        self.teacher_combo.setFixedSize(200, 30)
+        self.teacher_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.schedule_group_combo.currentIndexChanged.connect(self.load_stats)
+        teacher_layout.addWidget(self.teacher_combo, alignment=Qt.AlignLeft)
+        teacher_layout.addStretch(1)
+
+        cabinet_text = QLabel("Номер кабинета")
+        cabinet_text.setStyleSheet("font-family: Roboto; color: #333;")
+        num_layout.addWidget(cabinet_text, alignment=Qt.AlignLeft)
+
+        self.cabinet_combo = QComboBox()
+        self.cabinet_combo.addItems(["Выберите кабинет"])
+        self.cabinet_combo.setFixedSize(125, 30)
+        self.cabinet_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        # self.schedule_group_combo.currentIndexChanged.connect(self.load_stats)
+        num_layout.addWidget(self.cabinet_combo, alignment=Qt.AlignLeft)
+        num_layout.addStretch(1)
+
+        self.add_schedule = QPushButton("Добавить")
+        self.add_schedule.setFixedSize(90, 35)
+        self.add_schedule.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.add_schedule.clicked.connect()
+        self.add_schedule.setEnabled(False)
+        buttons_layout.addWidget(self.add_schedule)
+
+        self.del_schedule = QPushButton("Очистить")
+        self.del_schedule.setFixedSize(90, 35)
+        self.del_schedule.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        # self.del_schedule.clicked.connect()
+        self.del_schedule.setEnabled(False)
+        buttons_layout.addWidget(self.del_schedule)
+
+        self.selected_student_id = None
+        self.selected_student_fio = None
+
+    def load_schedule(self):
+        if (self.schedule_group_combo.currentIndex() > 0 and 
+            self.schedule_day_combo.currentIndex() > 0):
+            try:
+                cursor = self.conn.cursor()
+
+                # второй вариант запроса
+                # select
+                #     sch.id_schedule,
+                #     sch.lesson_num,
+                #     convert(varchar, n_c.num) + n_c.letter as [group],
+                #     s.subject_name,
+                #     u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                #     convert(varchar, cab.num)
+                # from schedule sch
+                # inner join name_class n_c on n_c.id_name_class = sch.id_name_class
+                # inner join subject s on s.id_subject = sch.id_subject
+                # inner join users u on u.id_user = sch.id_user
+                # inner join cabinet cab on cab.id_cabinet = sch.id_cabinet
+                
+                query = ("""
+                    select
+                        sch.id_schedule,
+                        sch.lesson_num,
+                        convert(varchar, n_c.num) + n_c.letter as [group],
+                        s.subject_name,
+                        u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                        convert(varchar, cab.num)
+                    from schedule sch
+                    inner join subject s on s.id_subject = sch.id_subject
+                    inner join name_class n_c on n_c.id_name_class = sch.id_name_class
+                    inner join cabinet cab on cab.id_cabinet = sch.id_cabinet
+                    inner join users u on u.id_user = sch.id_user
+                    inner join subj_teachers s_t on s_t.id_subject = s.id_subject
+                    where sch.id_name_class = ?
+                    and sch.day_of_week = ?
+                """) # переписать запрос
+                cursor.execute(query, (
+                    self.schedule_group_combo.currentData(), 
+                    self.schedule_day_combo.currentText()
+                ))
+                schedule_data = cursor.fetchall()
+                
+                schedule_dict = {}
+                for record in schedule_data:
+                    lesson_num = record[1]
+                    schedule_dict[lesson_num] = {
+                        'id_schedule': record[0],
+                        'lesson_num': record[1],
+                        'group_name': record[2],
+                        'subject_name': record[3],
+                        'fio': record[4],
+                        'cabinet': record[5]
+                    }
+                
+                max_lessons = 5
+                self.schedule_table.setRowCount(max_lessons)
+                
+                for lesson_num in range(1, max_lessons + 1):
+                    row = lesson_num - 1
+                    
+                    if lesson_num in schedule_dict:
+                        data = schedule_dict[lesson_num]
+                        
+                        # номер занятия
+                        l_num_item = QTableWidgetItem(str(data['lesson_num']))
+                        l_num_item.setData(Qt.UserRole, {
+                            'id_schedule': data['id_schedule'],
+                            'lesson_num': data['lesson_num']
+                        })
+                        l_num_item.setFlags(l_num_item.flags() & ~Qt.ItemIsEditable)
+                        l_num_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 0, l_num_item)
+
+                        # группа
+                        group_item = QTableWidgetItem(data['group_name'])
+                        group_item.setData(Qt.UserRole, {
+                            'id_schedule': data['id_schedule'],
+                            'lesson_num': data['lesson_num']
+                        })
+                        group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                        group_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 1, group_item)
+
+                        # предмет
+                        subject_item = QTableWidgetItem(data['subject_name'])
+                        subject_item.setData(Qt.UserRole, {
+                            'id_schedule': data['id_schedule'],
+                            'lesson_num': data['lesson_num']
+                        })
+                        subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
+                        subject_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 2, subject_item)
+
+                        # фио
+                        fio_item = QTableWidgetItem(data['fio'])
+                        fio_item.setData(Qt.UserRole, {
+                            'id_schedule': data['id_schedule'],
+                            'lesson_num': data['lesson_num']
+                        })
+                        fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                        fio_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 3, fio_item)
+
+                        # кабинет
+                        cabinet_item = QTableWidgetItem(data['cabinet'])
+                        cabinet_item.setData(Qt.UserRole, {
+                            'id_schedule': data['id_schedule'],
+                            'lesson_num': data['lesson_num']
+                        })
+                        cabinet_item.setFlags(cabinet_item.flags() & ~Qt.ItemIsEditable)
+                        cabinet_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 4, cabinet_item)
+                        
+                    else:
+                        l_num_item = QTableWidgetItem(str(lesson_num))
+                        l_num_item.setFlags(l_num_item.flags() & ~Qt.ItemIsEditable)
+                        l_num_item.setTextAlignment(Qt.AlignCenter)
+                        self.schedule_table.setItem(row, 0, l_num_item)
+                        
+                        for col in range(1, 5):
+                            empty_item = QTableWidgetItem("")
+                            empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEditable)
+                            empty_item.setTextAlignment(Qt.AlignCenter)
+                            self.schedule_table.setItem(row, col, empty_item)
+                
+                cursor.close()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить расписание для группы: {str(e)}")
+                self.create_empty_schedule_table()
+
+    def create_empty_schedule_table(self): # пустая таблица
+        max_lessons = 5
+        self.schedule_table.setRowCount(max_lessons)
+        
+        for lesson_num in range(1, max_lessons + 1):
+            row = lesson_num - 1
+            
+            # номер занятия
+            l_num_item = QTableWidgetItem(str(lesson_num))
+            l_num_item.setFlags(l_num_item.flags() & ~Qt.ItemIsEditable)
+            l_num_item.setTextAlignment(Qt.AlignCenter)
+            self.schedule_table.setItem(row, 0, l_num_item)
+            
+            for col in range(1, 5):
+                empty_item = QTableWidgetItem("")
+                empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEditable)
+                empty_item.setTextAlignment(Qt.AlignCenter)
+                self.schedule_table.setItem(row, col, empty_item)
+
+    def load_groups_for_schedule(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.schedule_group_combo) # в скобках указан элемент для подстановки
+
+    def load_subject_name_for_schedule(self):
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select
+                    s.subject_name
+                from name_class n_c
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join subject s on s.id_subject = s_t.id_subject
+                where n_c.id_name_class = ?
+                order by n_c.num, n_c.letter
+            """
+            cursor.execute(query, self.schedule_group_combo.currentData())
+            groups_data = cursor.fetchall()
+            
+            if groups_data:
+                for group in groups_data:
+                    subject_name = group[0]
+                    self.schedule_subject.setText(subject_name)
+            else:
+                self.schedule_subject.setText("Нет предмета")
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.schedule_subject.clear()
+            self.schedule_subject.setText(f"Ошибка загрузки: {str(e)}")
+
+    def load_teachers_for_schedule(self):
+        if self.schedule_group_combo.currentIndex() > 0:
+            try:
+                cursor = self.conn.cursor()
+                
+                query = """
+                    select
+                        u.id_user,
+                        u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio
+                    from users u
+                    inner join subj_teachers s_t on s_t.id_user = u.id_user
+                    inner join subject s on s.id_subject = s_t.id_subject
+                    where s.subject_name = ?
+                """
+                cursor.execute(query, self.schedule_subject.text())
+                teachers_data = cursor.fetchall()
+                
+                if teachers_data:
+                    for group in teachers_data:
+                        id_user = group[0]
+                        fio = group[1]
+                        self.teacher_combo.addItem(fio, id_user)
+                else:
+                    self.teacher_combo.setText("Нет преподавателей")
+                    
+                cursor.close()
+                
+            except Exception as e:
+                self.teacher_combo.clear()
+                self.teacher_combo.setText(f"Ошибка загрузки: {str(e)}")
+
+    def load_cabinets_for_schedule(self):
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select
+                    id_cabinet,
+                    num
+                from cabinet
+                order by num
+            """
+            cursor.execute(query)
+            cabinets_data = cursor.fetchall()
+            
+            if cabinets_data:
+                for group in cabinets_data:
+                    id_cabinet = group[0]
+                    cabinet_name = group[1]
+                    self.cabinet_combo.addItem(cabinet_name, id_cabinet)
+            else:
+                self.schedule_subject.setText("Нет кабинетов")
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.schedule_subject.clear()
+            self.schedule_subject.setText(f"Ошибка загрузки: {str(e)}")
 
 
 class EditUserDialog(QDialog): # окно редактирования пользователя
