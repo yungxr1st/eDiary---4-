@@ -2344,7 +2344,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.schedule_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.schedule_table.setSelectionMode(QTableWidget.SingleSelection)
         self.schedule_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.schedule_table.itemSelectionChanged.connect(self.on_stats_selected)
+        self.schedule_table.itemSelectionChanged.connect(self.on_schedule_selected)
         self.schedule_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
@@ -2440,9 +2440,9 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         num_layout.addWidget(self.cabinet_combo, alignment=Qt.AlignLeft)
         num_layout.addStretch(1)
 
-        self.add_schedule = QPushButton("Добавить")
-        self.add_schedule.setFixedSize(90, 35)
-        self.add_schedule.setStyleSheet("""
+        self.add_schedule_button = QPushButton("Добавить")
+        self.add_schedule_button.setFixedSize(90, 35)
+        self.add_schedule_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
                 color: white;
@@ -2460,13 +2460,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.add_schedule.clicked.connect()
-        self.add_schedule.setEnabled(False)
-        buttons_layout.addWidget(self.add_schedule)
+        self.add_schedule_button.clicked.connect(self.add_schedule)
+        self.add_schedule_button.setEnabled(False)
+        buttons_layout.addWidget(self.add_schedule_button)
 
-        self.del_schedule = QPushButton("Очистить")
-        self.del_schedule.setFixedSize(90, 35)
-        self.del_schedule.setStyleSheet("""
+        self.del_schedule_button = QPushButton("Очистить")
+        self.del_schedule_button.setFixedSize(90, 35)
+        self.del_schedule_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
                 color: white;
@@ -2484,14 +2484,15 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 background-color: #95a5a6;
             }
         """)
-        # self.del_schedule.clicked.connect()
-        self.del_schedule.setEnabled(False)
-        buttons_layout.addWidget(self.del_schedule)
+        self.del_schedule_button.clicked.connect(self.del_schedule)
+        self.del_schedule_button.setEnabled(False)
+        buttons_layout.addWidget(self.del_schedule_button)
 
-        self.selected_student_id = None
-        self.selected_student_fio = None
+        self.selected_schedule_id = None
+        self.selected_lesson_num = None
 
     def load_schedule(self):
+        self.num_label.setText("Номер занятия:  ")
         if (self.schedule_group_combo.currentIndex() > 0 and 
             self.schedule_day_combo.currentIndex() > 0):
             try:
@@ -2622,8 +2623,303 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить расписание для группы: {str(e)}")
                 self.create_empty_schedule_table()
+        else:
+            self.create_empty_schedule_table()
+            self.on_schedule_selected()
+
+    def on_schedule_selected(self): # выбор строки в таблице
+        selected_items = self.schedule_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            row = self.schedule_table.row(item)
+            
+            lesson_num_item = self.schedule_table.item(row, 0)
+            if lesson_num_item:
+                self.selected_lesson_num = int(lesson_num_item.text())
+                self.num_label.setText(f"Номер занятия: {self.selected_lesson_num}")
+            else:
+                self.selected_lesson_num = row + 1
+                self.num_label.setText(f"Номер занятия: {self.selected_lesson_num}")
+                
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data and 'id_schedule' in item_data and 'lesson_num' in item_data:
+                self.selected_schedule_id = item_data['id_schedule']
+                self.selected_lesson_num = item_data['lesson_num']
+
+                self.num_label.setText(f"Номер занятия: {self.selected_lesson_num}")
+                
+                row = self.schedule_table.row(item)
+                group_name = self.schedule_table.item(row, 1).text() if self.schedule_table.item(row, 1) else ""
+                subject_name = self.schedule_table.item(row, 2).text() if self.schedule_table.item(row, 2) else ""
+                teacher_fio = self.schedule_table.item(row, 3).text() if self.schedule_table.item(row, 3) else ""
+                cabinet_num = self.schedule_table.item(row, 4).text() if self.schedule_table.item(row, 4) else ""
+                
+                for i in range(self.schedule_group_combo.count()):
+                    if self.schedule_group_combo.itemText(i) == group_name:
+                        self.schedule_group_combo.setCurrentIndex(i)
+                        break
+
+                for i in range(self.schedule_day_combo.count()):
+                    if self.schedule_day_combo.itemText(i) == self.schedule_day_combo.currentText():
+                        pass
+                
+                for i in range(self.teacher_combo.count()):
+                    if self.teacher_combo.itemText(i) == teacher_fio:
+                        self.teacher_combo.setCurrentIndex(i)
+                        break
+                
+                for i in range(self.cabinet_combo.count()):
+                    if self.cabinet_combo.itemText(i) == cabinet_num:
+                        self.cabinet_combo.setCurrentIndex(i)
+                        break
+                
+                self.add_schedule_button.setEnabled(True)
+                self.del_schedule_button.setEnabled(True)
+            else:
+                self.selected_schedule_id = None
+                self.selected_lesson_num = None
+                if lesson_num_item:
+                    self.selected_lesson_num = int(lesson_num_item.text())
+                    self.num_label.setText(f"Номер занятия: {self.selected_lesson_num}")
+                self.cabinet_combo.setCurrentIndex(0)
+                self.teacher_combo.setCurrentIndex(0)
+                self.add_schedule_button.setEnabled(True)
+                self.del_schedule_button.setEnabled(False)
+        else:
+            self.selected_schedule_id = None
+            self.selected_lesson_num = None
+            self.num_label.setText("Номер занятия:  ")
+            self.add_schedule_button.setEnabled(False)
+            self.del_schedule_button.setEnabled(False)
+
+    def add_schedule(self): # добавление расписания для группы
+        if self.schedule_group_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите группу")
+            return
+        
+        if self.schedule_day_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите день недели")
+            return
+        
+        if self.teacher_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите преподавателя")
+            return
+        
+        if self.cabinet_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите кабинет")
+            return
+        
+        selected_row = None
+        if hasattr(self, 'selected_lesson_num') and self.selected_lesson_num:
+            selected_row = self.selected_lesson_num - 1
+        
+        if selected_row is None:
+            QMessageBox.warning(self, "Ошибка", "Выберите номер занятия в таблице")
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            check_cabinet_query = """
+                select count(*)
+                from schedule sch
+                where sch.id_cabinet = ?
+                and sch.day_of_week = ?
+                and sch.lesson_num = ?
+                and sch.id_schedule != ?  -- исключаем текущую запись при обновлении
+            """
+            current_schedule_id = self.selected_schedule_id if hasattr(self, 'selected_schedule_id') and self.selected_schedule_id else 0
+            cursor.execute(check_cabinet_query, (
+                self.cabinet_combo.currentData(),
+                self.schedule_day_combo.currentText(),
+                self.selected_lesson_num,
+                current_schedule_id
+            ))
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(self, "Ошибка", "Кабинет уже занят в это время")
+                cursor.close()
+                return
+            
+            check_teacher_query = """
+                select count(*)
+                from schedule sch
+                where sch.id_user = ?
+                and sch.day_of_week = ?
+                and sch.lesson_num = ?
+                and sch.id_schedule != ?
+            """
+            cursor.execute(check_teacher_query, (
+                self.teacher_combo.currentData(),
+                self.schedule_day_combo.currentText(),
+                self.selected_lesson_num,
+                current_schedule_id
+            ))
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(self, "Ошибка", "Преподаватель уже занят в это время")
+                cursor.close()
+                return
+            
+            check_group_query = """
+                select count(*)
+                from schedule sch
+                where sch.id_name_class = ?
+                and sch.day_of_week = ?
+                and sch.lesson_num = ?
+                and sch.id_schedule != ?
+            """
+            cursor.execute(check_group_query, (
+                self.schedule_group_combo.currentData(),
+                self.schedule_day_combo.currentText(),
+                self.selected_lesson_num,
+                current_schedule_id
+            ))
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(self, "Ошибка", "У группы уже есть занятие в это время")
+                cursor.close()
+                return
+            
+            subject_query = """
+                select s_t.id_subject
+                from subj_teachers s_t
+                inner join users u on u.id_user = s_t.id_user
+                where s_t.id_name_class = ?
+                and u.id_user = ?
+            """
+            cursor.execute(subject_query, (
+                self.schedule_group_combo.currentData(),
+                self.teacher_combo.currentData()
+            ))
+            subject_data = cursor.fetchone()
+            if not subject_data:
+                QMessageBox.warning(self, "Ошибка", "Данный преподаватель не ведет предмет у выбранной группы")
+                cursor.close()
+                return
+            
+            id_subject = subject_data[0]
+            
+            if current_schedule_id > 0:
+                update_query = """
+                    update schedule
+                    set id_name_class = ?,
+                        id_subject = ?,
+                        id_user = ?,
+                        day_of_week = ?,
+                        lesson_num = ?,
+                        id_cabinet = ?
+                    where id_schedule = ?
+                """
+                cursor.execute(update_query, (
+                    self.schedule_group_combo.currentData(),
+                    id_subject,
+                    self.teacher_combo.currentData(),
+                    self.schedule_day_combo.currentText(),
+                    self.selected_lesson_num,
+                    self.cabinet_combo.currentData(),
+                    current_schedule_id
+                ))
+                
+                self.conn.commit()
+                cursor.close()
+                
+                QMessageBox.information(self, "Успех", "Расписание успешно обновлено")
+                
+            else:
+                insert_query = """
+                    insert into schedule(id_name_class, id_subject, id_user, day_of_week, lesson_num, id_cabinet)
+                    values(?, ?, ?, ?, ?, ?)
+                """
+                cursor.execute(insert_query, (
+                    self.schedule_group_combo.currentData(),
+                    id_subject,
+                    self.teacher_combo.currentData(),
+                    self.schedule_day_combo.currentText(),
+                    self.selected_lesson_num,
+                    self.cabinet_combo.currentData()
+                ))
+                
+                self.conn.commit()
+                cursor.close()
+                
+                QMessageBox.information(self, "Успех", "Занятие успешно добавлено в расписание")
+            
+            self.load_schedule()
+            
+            self.schedule_table.clearSelection()
+            self.selected_schedule_id = None
+            self.selected_lesson_num = None
+            self.add_schedule_button.setEnabled(False)
+            self.del_schedule_button.setEnabled(False)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить расписание: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def del_schedule(self): # удаление расписания у группы
+        if not hasattr(self, 'selected_schedule_id') or not self.selected_schedule_id:
+            QMessageBox.warning(self, "Ошибка", "Выберите запись расписания для удаления")
+            return
+        
+        row = None
+        for i in range(self.schedule_table.rowCount()):
+            item = self.schedule_table.item(i, 0)
+            if item and item.data(Qt.UserRole):
+                data = item.data(Qt.UserRole)
+                if data.get('id_schedule') == self.selected_schedule_id:
+                    row = i
+                    break
+        
+        if row is None:
+            QMessageBox.warning(self, "Ошибка", "Не удалось найти выбранную запись")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Вы уверены, что хотите удалить занятие?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            delete_query = """
+                delete from schedule
+                where id_schedule = ?
+            """
+            cursor.execute(delete_query, (self.selected_schedule_id,))
+            self.conn.commit()
+            
+            QMessageBox.information(
+                self,
+                "Успех",
+                "Занятие успешно удалено из расписания"
+            )
+            
+            cursor.close()
+            
+            self.load_schedule()
+            
+            self.schedule_table.clearSelection()
+            self.selected_schedule_id = None
+            self.selected_lesson_num = None
+            self.add_schedule_button.setEnabled(False)
+            self.del_schedule_button.setEnabled(False)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить занятие: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
 
     def create_empty_schedule_table(self): # пустая таблица
+        self.num_label.setText("Номер занятия:  ")
+
         max_lessons = 5
         self.schedule_table.setRowCount(max_lessons)
         
@@ -2675,6 +2971,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             self.schedule_subject.setText(f"Ошибка загрузки: {str(e)}")
 
     def load_teachers_for_schedule(self):
+        self.teacher_combo.clear()
+        self.teacher_combo.addItems(["Выберите преподавателя"])
         if self.schedule_group_combo.currentIndex() > 0:
             try:
                 cursor = self.conn.cursor()
