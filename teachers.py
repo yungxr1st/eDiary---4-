@@ -1996,8 +1996,8 @@ class MainMenuTeacher(QMainWindow):
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subj_students s_s on s_s.id_user = u.id_user
-                inner join [subject] s on s.id_subject = s_s.id_subject
-                inner join subj_teachers s_t on s_t.id_subject = s.id_subject
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join [subject] s on s.id_subject = s_t.id_subject
                 where s_t.id_user = ? and t.id_name_class = ?
                 order by id_test desc
             """

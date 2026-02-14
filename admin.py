@@ -666,7 +666,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
     def __init__(self, parent = None, conn = None):
         super().__init__(parent)
         self.conn = conn
-        self.current_mode = "groups" # для переключения между группами и предметами
+        self.current_mode = "groups" # для переключения между группами, предметами и кабинетами
         self.setWindowTitle("Группы и предметы")
         self.setFixedSize(600, 500)
         self.setModal(True)
@@ -698,6 +698,9 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             QPushButton:pressed {
                 background-color: #21618c;
             }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
         """)
         self.group_button.setCheckable(True)
         self.group_button.setChecked(True)
@@ -720,10 +723,38 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             QPushButton:pressed {
                 background-color: #21618c;
             }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
         """)
         self.subject_button.setCheckable(True)
         self.subject_button.clicked.connect(self.subject)
         button_layout.addWidget(self.subject_button, alignment=Qt.AlignLeft)
+
+        self.cabinet_button = QPushButton("Кабинеты")
+        self.cabinet_button.setFixedSize(150, 40)
+        self.cabinet_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.cabinet_button.setCheckable(True)
+        self.cabinet_button.clicked.connect(self.cabinet)
+        button_layout.addWidget(self.cabinet_button, alignment=Qt.AlignLeft)
+
         button_layout.addStretch(1)
 
         self.content_layout = QVBoxLayout() # область для таблицы и строк для записи
@@ -732,7 +763,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
 
         # таблица для вывода групп и предметов
         self.group_subject_table = QTableWidget()
-        self.group_subject_table.setFixedSize(300, 250)
+        self.group_subject_table.setFixedSize(250, 250)
         self.group_subject_table.setColumnCount(2)
         self.group_subject_table.setHorizontalHeaderLabels([
             "Цифра группы", "Буква группы"
@@ -740,6 +771,8 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         self.group_subject_table.horizontalHeader().setStretchLastSection(True)
         self.group_subject_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.group_subject_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.group_subject_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.group_subject_table.itemSelectionChanged.connect(self.on_item_selected)
         
         table_style = ("""
             QTableWidget {
@@ -788,7 +821,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         input_layout = QVBoxLayout()
         input_layout.setAlignment(Qt.AlignCenter)
 
-        # виджет для групп, чтобы заменять поля для групп на поля для предметов
+        # виджет для групп, чтобы отображать поля для групп
         self.group_input_widget = QWidget()
         group_input_layout = QVBoxLayout()
         group_input_layout.setAlignment(Qt.AlignCenter)
@@ -827,7 +860,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         """)
         group_input_layout.addWidget(self.groupLet_line)
 
-        # виджет для предметов, чтобы заменять поля для предметов на поля для групп
+        # виджет, чтобы отображать поля для предметов
         self.subject_input_widget = QWidget()
         self.subject_input_widget.setVisible(False)
         subject_input_layout = QVBoxLayout()
@@ -853,8 +886,35 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
 
         subject_input_layout.addSpacing(30)
 
+        # виджет, чтобы отображать поля для кабинетов
+        self.cabinet_input_widget = QWidget()
+        self.cabinet_input_widget.setVisible(False)
+        cabinet_input_layout = QVBoxLayout()
+        cabinet_input_layout.setAlignment(Qt.AlignCenter)
+        self.cabinet_input_widget.setLayout(cabinet_input_layout)
+
+        # строка для кабинета
+        cabinet_label = QLabel("Кабинет")
+        cabinet_label.setFont(QFont("Roboto", 10))
+        cabinet_input_layout.addSpacing(38)
+        cabinet_input_layout.addWidget(cabinet_label)
+
+        self.cabinet_line = QLineEdit()
+        self.cabinet_line.setFixedSize(150, 30)
+        self.cabinet_line.setFont(QFont("Roboto", 10))
+        self.cabinet_line.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            color: #333;
+            padding: 5px;
+        """)
+        cabinet_input_layout.addWidget(self.cabinet_line)
+
+        cabinet_input_layout.addSpacing(30)
+
         input_layout.addWidget(self.group_input_widget)
         input_layout.addWidget(self.subject_input_widget)
+        input_layout.addWidget(self.cabinet_input_widget)
         self.content_layout.addLayout(input_layout)
         self.content_layout.addSpacing(10)
 
@@ -878,6 +938,9 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             QPushButton:pressed {
                 background-color: #21618c;
             }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
         """)
         self.add_button.clicked.connect(self.add_item)
         content_button.addWidget(self.add_button, alignment=Qt.AlignCenter)
@@ -898,6 +961,9 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             QPushButton:pressed {
                 background-color: #21618c;
             }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
         """)
         self.delete_button.clicked.connect(self.delete_item)
         content_button.addWidget(self.delete_button, alignment=Qt.AlignCenter)
@@ -907,12 +973,99 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         self.group_subject_table.itemSelectionChanged.connect(self.update_buttons_state)
         self.update_buttons_state()
 
+    def on_item_selected(self):  # выбор строки в таблице групп/предметов/кабинетов
+        selected_items = self.group_subject_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            row = self.group_subject_table.row(item)
+            
+            if self.current_mode == "groups":
+                num_item = self.group_subject_table.item(row, 0)
+                letter_item = self.group_subject_table.item(row, 1)
+                
+                if num_item and letter_item:
+                    num_data = num_item.data(Qt.UserRole)
+                    letter_data = letter_item.data(Qt.UserRole)
+                    
+                    if num_data and 'id_name_class' in num_data:
+                        self.selected_item_id = num_data['id_name_class']
+                        self.groupNum_line.setText(num_item.text())
+                        self.groupLet_line.setText(letter_item.text())
+                        
+                        self.delete_button.setEnabled(True)
+                    else:
+                        self.selected_item_id = None
+                        self.groupNum_line.clear()
+                        self.groupLet_line.clear()
+                        self.delete_button.setEnabled(False)
+                else:
+                    self.selected_item_id = None
+                    self.groupNum_line.clear()
+                    self.groupLet_line.clear()
+                    self.delete_button.setEnabled(False)
+                    
+            elif self.current_mode == "subjects":
+                subject_item = self.group_subject_table.item(row, 0)
+                
+                if subject_item:
+                    subject_data = subject_item.data(Qt.UserRole)
+                    
+                    if subject_data and 'id_subject' in subject_data:
+                        self.selected_item_id = subject_data['id_subject']
+                        self.subject_line.setText(subject_item.text())
+                        
+                        self.delete_button.setEnabled(True)
+                    else:
+                        self.selected_item_id = None
+                        self.subject_line.clear()
+                        self.delete_button.setEnabled(False)
+                else:
+                    self.selected_item_id = None
+                    self.subject_line.clear()
+                    self.delete_button.setEnabled(False)
+                    
+            elif self.current_mode == "cabinets":
+                cabinet_item = self.group_subject_table.item(row, 0)
+                
+                if cabinet_item:
+                    cabinet_data = cabinet_item.data(Qt.UserRole)
+                    
+                    if cabinet_data and 'id_cabinet' in cabinet_data:
+                        self.selected_item_id = cabinet_data['id_cabinet']
+                        self.cabinet_line.setText(cabinet_item.text())
+                        
+                        self.delete_button.setEnabled(True)
+                    else:
+                        self.selected_item_id = None
+                        self.cabinet_line.clear()
+                        self.delete_button.setEnabled(False)
+                else:
+                    self.selected_item_id = None
+                    self.cabinet_line.clear()
+                    self.delete_button.setEnabled(False)
+        else:
+            self.selected_item_id = None
+            self.clear_inputs()
+            self.delete_button.setEnabled(False)
+
+    def clear_inputs(self):
+        if self.current_mode == "groups":
+            self.groupNum_line.clear()
+            self.groupLet_line.clear()
+        elif self.current_mode == "subjects":
+            self.subject_line.clear()
+        elif self.current_mode == "cabinets":
+            self.cabinet_line.clear()
+
     def group(self): # вывод групп
         self.current_mode = "groups"
         self.group_button.setChecked(True)
         self.subject_button.setChecked(False)
+        self.cabinet_button.setChecked(False)
         self.group_input_widget.setVisible(True)
         self.subject_input_widget.setVisible(False)
+        self.cabinet_input_widget.setVisible(False)
         self.add_button.setText("Добавить группу")
         self.delete_button.setText("Удалить группу")
         self.group_subject_table.clear()
@@ -924,14 +1077,31 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         self.current_mode = "subjects"
         self.group_button.setChecked(False)
         self.subject_button.setChecked(True)
+        self.cabinet_button.setChecked(False)
         self.group_input_widget.setVisible(False)
         self.subject_input_widget.setVisible(True)
+        self.cabinet_input_widget.setVisible(False)
         self.add_button.setText("Добавить предмет")
         self.delete_button.setText("Удалить предмет")
         self.group_subject_table.clear()
         self.group_subject_table.setColumnCount(1)
         self.group_subject_table.setHorizontalHeaderLabels(["Название предмета"])
         self.load_subjects()
+
+    def cabinet(self): # вывод кабинетов
+        self.current_mode = "cabinets"
+        self.group_button.setChecked(False)
+        self.subject_button.setChecked(False)
+        self.cabinet_button.setChecked(True)
+        self.group_input_widget.setVisible(False)
+        self.subject_input_widget.setVisible(False)
+        self.cabinet_input_widget.setVisible(True)
+        self.add_button.setText("Добавить кабинет")
+        self.delete_button.setText("Удалить кабинет")
+        self.group_subject_table.clear()
+        self.group_subject_table.setColumnCount(1)
+        self.group_subject_table.setHorizontalHeaderLabels(["Кабинет"])
+        self.load_cabinets()
 
     def load_groups(self): # загрузка групп из бд
         try:
@@ -952,13 +1122,16 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
                 
                 # номер группы
                 num_item = QTableWidgetItem(str(num))
-                num_item.setData(Qt.UserRole, id_name_class)
+                num_item.setData(Qt.UserRole, {'id_name_class': id_name_class})
                 num_item.setFlags(num_item.flags() & ~Qt.ItemIsEditable)
+                num_item.setTextAlignment(Qt.AlignCenter)
                 self.group_subject_table.setItem(row, 0, num_item)
                 
                 # буква группы
                 letter_item = QTableWidgetItem(letter)
+                letter_item.setData(Qt.UserRole, {'id_name_class': id_name_class})
                 letter_item.setFlags(letter_item.flags() & ~Qt.ItemIsEditable)
+                letter_item.setTextAlignment(Qt.AlignCenter)
                 self.group_subject_table.setItem(row, 1, letter_item)
             
             cursor.close()
@@ -970,7 +1143,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select subject_name 
+                select id_subject, subject_name 
                 from subject 
                 order by subject_name
             """)
@@ -979,11 +1152,14 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             self.group_subject_table.setRowCount(len(subjects_data))
             
             for row, subject in enumerate(subjects_data):
-                subject_name = subject[0]
+                id_subject = subject[0]
+                subject_name = subject[1]
                 
                 # название предмета
                 name_item = QTableWidgetItem(subject_name)
+                name_item.setData(Qt.UserRole, {'id_subject': id_subject})
                 name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+                name_item.setTextAlignment(Qt.AlignCenter)
                 self.group_subject_table.setItem(row, 0, name_item)
             
             cursor.close()
@@ -991,11 +1167,41 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить предметы: {str(e)}")
 
-    def add_item(self): # добавление предмета (группа или предмет)
+    def load_cabinets(self): # загрузка кабинетов из бд
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                select id_cabinet, num
+                from cabinet 
+                order by num
+            """)
+            cabinets_data = cursor.fetchall()
+            
+            self.group_subject_table.setRowCount(len(cabinets_data))
+            
+            for row, record in enumerate(cabinets_data):
+                id_cabinet = record[0]
+                cabinet_num = record[1]
+                
+                # название предмета
+                cabinet_item = QTableWidgetItem(cabinet_num)
+                cabinet_item.setData(Qt.UserRole, {'id_cabinet': id_cabinet})
+                cabinet_item.setFlags(cabinet_item.flags() & ~Qt.ItemIsEditable)
+                cabinet_item.setTextAlignment(Qt.AlignCenter)
+                self.group_subject_table.setItem(row, 0, cabinet_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить кабинеты: {str(e)}")
+
+    def add_item(self): # добавление предмета (группа, предмет или кабинет)
         if self.current_mode == "groups":
             self.add_group()
-        else:
+        elif self.current_mode == "subjects":
             self.add_subject()
+        elif self.current_mode == "cabinets":
+            self.add_cabinet()
 
     def add_group(self): # добавление группы
         num_text = self.groupNum_line.text().strip()
@@ -1090,6 +1296,44 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось добавить предмет: {str(e)}")
 
+    def add_cabinet(self): # добавление кабинета
+        cabinet_name = self.cabinet_line.text().strip()
+        
+        if not cabinet_name:
+            QMessageBox.warning(self, "Предупреждение", "Введите номер кабинета")
+            return
+        
+        # проверка существующих кабинетов
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                select count(*) from cabinet 
+                where num = ?
+            """, (cabinet_name,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(self, "Предупреждение", "Такой кабинет уже существует")
+                cursor.close()
+                return
+            
+            # добавление кабинета
+            cursor.execute("""
+                insert into cabinet (num) 
+                values (?)
+            """, (cabinet_name,))
+            
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Кабинет успешно добавлен")
+            
+            # очистка таблицы
+            self.cabinet_line.clear()
+            self.load_cabinets()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось добавить кабинет: {str(e)}")
+
     def delete_item(self): # удаление предмета (группа или предмет)
         selected_row = self.group_subject_table.currentRow()
         
@@ -1099,15 +1343,21 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         
         if self.current_mode == "groups":
             self.delete_group(selected_row)
-        else:
+        elif self.current_mode == "subjects":
             self.delete_subject(selected_row)
+        elif self.current_mode == "cabinets":
+            self.delete_cabinet(selected_row)
 
     def delete_group(self, row): # удаление группы
-        id_name_class_item = self.group_subject_table.item(row, 0)
-        if not id_name_class_item:
+        num_item = self.group_subject_table.item(row, 0)
+        if not num_item:
             return
         
-        id_name_class = id_name_class_item.data(Qt.UserRole)
+        id_name_class = self.selected_item_id
+        if not id_name_class:
+            QMessageBox.warning(self, "Ошибка", "Не удалось определить группу")
+            return
+        
         num = self.group_subject_table.item(row, 0).text()
         letter = self.group_subject_table.item(row, 1).text()
         
@@ -1135,7 +1385,77 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
                 QMessageBox.warning(
                     self,
                     "Ошибка",
-                    "Невозможно удалить группу, так как она используется в других таблицах."
+                    "Невозможно удалить группу, так как она используется в других таблицах"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from schedule
+                where id_name_class = ?
+            """, (id_name_class,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить группу, так как она используется в расписании"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from subj_teachers
+                where id_name_class = ?
+            """, (id_name_class,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить группу, так как к ней прикреплены преподаватели"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from exercise
+                where id_name_class = ?
+            """, (id_name_class,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить группу, так как для нее есть задания"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from lesson
+                where id_name_class = ?
+            """, (id_name_class,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить группу, так как для нее есть проведенные уроки"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from test
+                where id_name_class = ?
+            """, (id_name_class,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить группу, так как для нее есть тесты"
                 )
                 cursor.close()
                 return
@@ -1151,17 +1471,26 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             
             QMessageBox.information(self, "Успех", "Группа успешно удалена")
             self.load_groups()
+            self.clear_inputs()
+            self.selected_item_id = None
+            self.delete_button.setEnabled(False)
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось удалить группу: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
 
     def delete_subject(self, row): # удаление предмета
-        id_subject_item = self.group_subject_table.item(row, 0)
-        if not id_subject_item:
+        subject_item = self.group_subject_table.item(row, 0)
+        if not subject_item:
             return
         
-        id_subject = id_subject_item.data(Qt.UserRole)
-        subject_name = self.group_subject_table.item(row, 1).text()
+        id_subject = self.selected_item_id
+        if not id_subject:
+            QMessageBox.warning(self, "Ошибка", "Не удалось определить предмет")
+            return
+        
+        subject_name = self.group_subject_table.item(row, 0).text()
         
         reply = QMessageBox.question(
             self,
@@ -1187,7 +1516,63 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
                 QMessageBox.warning(
                     self,
                     "Ошибка",
-                    "Невозможно удалить предмет, так как он используется в других таблицах."
+                    "Невозможно удалить предмет, так как он используется в других таблицах"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from subj_teachers
+                where id_subject = ?
+            """, (id_subject,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить предмет, так как к нему прикреплены преподаватели"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from subj_students
+                where id_subject = ?
+            """, (id_subject,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить предмет, так как по нему есть оценки у учеников"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from exercise
+                where id_subject = ?
+            """, (id_subject,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить предмет, так как по нему есть задания"
+                )
+                cursor.close()
+                return
+            
+            cursor.execute("""
+                select count(*) from lesson
+                where id_subject = ?
+            """, (id_subject,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить предмет, так как по нему есть проведенные уроки"
                 )
                 cursor.close()
                 return
@@ -1203,9 +1588,74 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             
             QMessageBox.information(self, "Успех", "Предмет успешно удален")
             self.load_subjects()
+            self.subject_line.clear()
+            self.selected_item_id = None
+            self.delete_button.setEnabled(False)
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось удалить предмет: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def delete_cabinet(self, row): # удаление кабинета
+        cabinet_item = self.group_subject_table.item(row, 0)
+        if not cabinet_item:
+            return
+        
+        id_cabinet = self.selected_item_id
+        if not id_cabinet:
+            QMessageBox.warning(self, "Ошибка", "Не удалось определить кабинет")
+            return
+        
+        cabinet_name = self.group_subject_table.item(row, 0).text()
+        
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение удаления",
+            f"Вы уверены, что хотите удалить кабинет '{cabinet_name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+            
+            cursor.execute("""
+                select count(*) from schedule
+                where id_cabinet = ?
+            """, (id_cabinet,))
+            
+            if cursor.fetchone()[0] > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Невозможно удалить кабинет, так как он используется в расписании"
+                )
+                cursor.close()
+                return
+            
+            # удаление кабинета
+            cursor.execute("""
+                delete from cabinet 
+                where id_cabinet = ?
+            """, (id_cabinet,))
+            
+            self.conn.commit()
+            cursor.close()
+            
+            QMessageBox.information(self, "Успех", "Кабинет успешно удален")
+            self.load_cabinets()
+            self.cabinet_line.clear()
+            self.selected_item_id = None
+            self.delete_button.setEnabled(False)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить кабинет: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
 
     def update_buttons_state(self): # обновление кнопок
         has_selection = self.group_subject_table.currentRow() >= 0

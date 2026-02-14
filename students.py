@@ -246,6 +246,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.schedule_list.setFixedSize(400, 400)
         schedule_layout.addWidget(self.schedule_list)
+        schedule_layout.addSpacing(36)
 
         self.load_schedule()
 
@@ -289,6 +290,19 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.attendance_table.setFixedSize(400, 400)
         attendance_layout.addWidget(self.attendance_table)
 
+        self.attendance_group_combo = QComboBox()
+        self.attendance_group_combo.addItems(["Выберите группу"])
+        self.attendance_group_combo.setFixedSize(150, 30)
+        self.attendance_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.attendance_group_combo.currentIndexChanged.connect(self.load_attendance)
+        attendance_layout.addWidget(self.attendance_group_combo, alignment=Qt.AlignLeft)
+
     def homework(self): # домашние задания
         self.homework_widget = QWidget()
         homework_layout = QVBoxLayout()
@@ -327,6 +341,19 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.homework_table.setFixedSize(400, 400)
         homework_layout.addWidget(self.homework_table)
 
+        self.homework_group_combo = QComboBox()
+        self.homework_group_combo.addItems(["Выберите группу"])
+        self.homework_group_combo.setFixedSize(150, 30)
+        self.homework_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.homework_group_combo.currentIndexChanged.connect(self.load_homework)
+        homework_layout.addWidget(self.homework_group_combo, alignment=Qt.AlignLeft)
+
     def grades(self): # успеваемость (оценки)
         self.grades_widget = QWidget()
         grades_layout = QVBoxLayout()
@@ -346,6 +373,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для оценок
         self.grades_table = QListWidget()
+        self.grades_table.setFixedSize(400, 400)
         self.grades_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -362,8 +390,20 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border-bottom: none;
             }
         """)
-        self.grades_table.setFixedSize(400, 400)
         grades_layout.addWidget(self.grades_table)
+
+        self.grades_group_combo = QComboBox()
+        self.grades_group_combo.addItems(["Выберите группу"])
+        self.grades_group_combo.setFixedSize(150, 30)
+        self.grades_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.grades_group_combo.currentIndexChanged.connect(self.load_grades)
+        grades_layout.addWidget(self.grades_group_combo, alignment=Qt.AlignLeft)
 
     def tests(self): # тесты
         self.tests_widget = QWidget()
@@ -384,6 +424,8 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для тестов
         self.tests_table = QListWidget()
+        # self.tests_table.addItem(f"Выберите группу для вывода тестов")
+        self.tests_table.setFixedSize(400, 400)
         self.tests_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -409,9 +451,70 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border: none;
             }
         """)
-        self.tests_table.setFixedSize(400, 400)
         tests_layout.addWidget(self.tests_table)
         self.tests_table.itemDoubleClicked.connect(self.open_test_window) # двойное нажатие на тест открывает его
+
+        self.tests_group_combo = QComboBox()
+        self.tests_group_combo.addItems(["Выберите группу"])
+        self.tests_group_combo.setFixedSize(150, 30)
+        self.tests_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.tests_group_combo.currentIndexChanged.connect(self.load_tests)
+        tests_layout.addWidget(self.tests_group_combo, alignment=Qt.AlignLeft)
+
+    def load_groups_into_combo(self, combo_box): # загрузка групп
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select 
+                    c.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter
+                from class c
+                inner join name_class n_c on n_c.id_name_class = c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                where u.id_user = ?
+                order by n_c.num, n_c.letter
+            """
+            cursor.execute(query, self.id_user)
+            groups_data = cursor.fetchall()
+            
+            combo_box.clear()
+            
+            if groups_data:
+                combo_box.addItem("Выберите группу", None)
+                for group in groups_data:
+                    class_id = group[0]
+                    num_letter = group[1]
+                    group_name = f"{num_letter}"
+                    combo_box.addItem(group_name, class_id)
+            else:
+                combo_box.addItem("Нет групп")
+                combo_box.setEnabled(False)
+                
+            cursor.close()
+            
+        except Exception as e:
+            combo_box.clear()
+            combo_box.addItem(f"Ошибка загрузки: {str(e)}")
+            combo_box.setEnabled(False)
+
+    def load_groups_for_tests(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.tests_group_combo) # в скобках указан элемент для подстановки
+
+    def load_groups_for_grades(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.grades_group_combo) # в скобках указан элемент для подстановки
+
+    def load_groups_for_attendance(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.attendance_group_combo) # в скобках указан элемент для подстановки
+
+    def load_groups_for_homework(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.homework_group_combo) # в скобках указан элемент для подстановки
 
     def show_schedule(self): # отображение расписания
         self.clear_content_layout()
@@ -425,28 +528,28 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         self.content_layout_v.addWidget(self.attendance_widget)
 
-        self.load_attendance()
+        self.load_groups_for_attendance()
 
     def show_homework(self): # отображение дз
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.homework_widget)
 
-        self.load_homework()
+        self.load_groups_for_homework()
 
     def show_grades(self): # отображение оценок
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.grades_widget)
 
-        self.load_grades()
+        self.load_groups_for_grades()
 
     def show_tests(self): # отображение тестов
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.tests_widget)
 
-        self.load_tests()
+        self.load_groups_for_tests()
 
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
         for i in reversed(range(self.content_layout_v.count())):
@@ -538,10 +641,18 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
     def load_attendance(self): # загрузка посещаемости
         try:
+            selected_group_id = self.attendance_group_combo.currentData()
+            
+            if not selected_group_id:
+                return
+            
+            self.attendance_table.clear()
+
             cursor = self.conn.cursor()
 
             query = ("""
-                select l.date, sub.subject_name, t_att.title as attendance_status,
+                select 
+                    l.date, sub.subject_name, t_att.title as attendance_status,
                     u.surname + ' ' + left(u.name, 1) + '.' + left(u.patronymic, 1) + '.' as teacher_name
                 from lesson l
                 inner join subject sub on sub.id_subject = l.id_subject
@@ -549,11 +660,12 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 inner join type_attendance t_att on t_att.id_type_att = a.id_type_att
                 inner join subj_teachers s_t on s_t.id_subject = sub.id_subject
                 inner join users u on u.id_user = s_t.id_user
-                where a.id_user = ?
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                where a.id_user = ? and n_c.id_name_class = ?
                 order by l.date desc
             """)
 
-            cursor.execute(query, (self.id_user))
+            cursor.execute(query, (self.id_user, self.attendance_group_combo.currentData()))
             attendance_data = cursor.fetchall()
 
             self.attendance_table.clear()
@@ -624,6 +736,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             cursor.close()
 
         except Exception as e:
+            self.attendance_table.clear()
             error_item = QListWidgetItem(f"Ошибка при загрузке посещаемости: {str(e)}")
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
@@ -631,18 +744,26 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
     def load_homework(self): # загрузка заданий
         try:
+            selected_group_id = self.homework_group_combo.currentData()
+            
+            if not selected_group_id:
+                return
+            
+            self.homework_table.clear()
+
             cursor = self.conn.cursor()
 
             query = ("""
-                select subject.subject_name, exercise.exercise, exercise.upload, exercise.deadline
+                select 
+                    subject.subject_name, exercise.exercise, exercise.upload, exercise.deadline
                 from subject
                 inner join exercise on exercise.id_subject = subject.id_subject
                 inner join subj_students on subj_students.id_subject = subject.id_subject
-                where subj_students.id_user = ?
+                where subj_students.id_user = ? and exercise.id_name_class = ?
                 order by exercise.deadline desc
             """)
 
-            cursor.execute(query, (self.id_user))
+            cursor.execute(query, (self.id_user, self.homework_group_combo.currentData()))
             homework_data = cursor.fetchall()
 
             self.homework_table.clear()
@@ -691,6 +812,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             cursor.close()
 
         except Exception as e:
+            self.homework_table.clear()
             error_item = QListWidgetItem(f"Ошибка при загрузке домашних заданий: {str(e)}")
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
@@ -698,19 +820,28 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
     def load_grades(self): # загрузка оценок
         try:
+            selected_group_id = self.grades_group_combo.currentData()
+            
+            if not selected_group_id:
+                return
+            
+            self.grades_table.clear()
+
             cursor = self.conn.cursor()
 
             query = ("""
-                select subject.subject_name, lesson.date, grade.grade, t_g.title
-                from lesson
-                inner join subject on subject.id_subject = lesson.id_subject
-                inner join grade on grade.id_lesson = lesson.id_lesson
+                select 
+                    subject.subject_name, l.date, grade.grade, t_g.title
+                from lesson l
+                inner join subject on subject.id_subject = l.id_subject
+                inner join grade on grade.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = grade.id_type_gr
-                where grade.id_user = ?
-                order by lesson.date
+                inner join name_class n_c on n_c.id_name_class = l.id_name_class
+                where grade.id_user = ? and n_c.id_name_class = ?
+                order by l.date
             """)
 
-            cursor.execute(query, (self.id_user))
+            cursor.execute(query, (self.id_user, self.grades_group_combo.currentData()))
             grades_data = cursor.fetchall()
 
             self.grades_table.clear()
@@ -762,6 +893,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             cursor.close()
 
         except Exception as e:
+            self.grades_table.clear()
             error_item = QListWidgetItem(f"Ошибка при загрузке домашних заданий: {str(e)}")
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
@@ -769,6 +901,13 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
     def load_tests(self): # загрузка тестов
         try:
+            selected_group_id = self.tests_group_combo.currentData()
+            
+            if not selected_group_id:
+                return
+            
+            self.tests_table.clear()
+
             cursor = self.conn.cursor()
 
             query = ("""
@@ -783,12 +922,11 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 left join test_content t_c on t_c.id_test = t.id_test
                 left join test_answer t_a on t_a.id_answer = t_c.id_answer
                 left join solved_tests s_t on s_t.id_test = t.id_test and s_t.id_user = @id_user
-                where id_name_class = (select id_name_class from class where id_user = @id_user)
+                where t.id_name_class = ?
                 group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, s_t.grade_percent
                 order by deadline desc, upload desc, t_n.name desc
             """)
-
-            cursor.execute(query, (self.id_user))
+            cursor.execute(query, (self.id_user, self.tests_group_combo.currentData()))
             tests_data = cursor.fetchall()
 
             self.tests_table.clear()
@@ -848,6 +986,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             cursor.close()
 
         except Exception as e:
+            self.tests_table.clear()
             error_item = QListWidgetItem(f"Ошибка при загрузке тестов: {str(e)}")
             error_item.setFlags(Qt.NoItemFlags)
             error_item.setForeground(QColor("#e74c3c"))
