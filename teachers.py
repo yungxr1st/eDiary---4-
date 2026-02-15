@@ -262,7 +262,14 @@ class MainMenuTeacher(QMainWindow):
 
             query = ("""
                 select 
-                    s.day_of_week, sub.subject_name, nc.num, nc.letter, cab.num
+                    s.day_of_week, sub.subject_name, nc.num, nc.letter, cab.num,
+                    case s.lesson_num
+                        when 1 then '14:00'
+                        when 2 then '15:00'
+                        when 3 then '16:00'
+                        when 4 then '17:00'
+                        when 5 then '18:00'
+                    end as lesson_time
                 from schedule s
                 inner join name_class nc ON s.id_name_class = nc.id_name_class
                 inner join subject sub ON s.id_subject = sub.id_subject
@@ -296,10 +303,12 @@ class MainMenuTeacher(QMainWindow):
                     class_num = lesson[2]
                     class_letter = lesson[3]
                     cabinet = lesson[4]
+                    lesson_time = lesson[5]
 
                     class_group = f"{class_num}{class_letter}"
                     
-                    lesson_text = f"{subject_name}, группа: {class_group}, {cabinet} кабинет"
+                    lesson_text = (f"{subject_name}, группа: {class_group}, "
+                        f"{cabinet} кабинет\n  Начало в: {lesson_time}")
                     
                     if day_of_week != current_day:
                         current_day = day_of_week
@@ -934,25 +943,6 @@ class MainMenuTeacher(QMainWindow):
         
         top_layout.addStretch()
         
-        refresh_button = QPushButton("Обновить")
-        refresh_button.setFixedSize(120, 35)
-        refresh_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
-        refresh_button.clicked.connect(self.load_attendance)
-        top_layout.addWidget(refresh_button)
-        
         attendance_layout.addLayout(top_layout)
         
         # для таблицы
@@ -1027,6 +1017,7 @@ class MainMenuTeacher(QMainWindow):
             padding: 5px;
             font-family: Roboto;
         """)
+        self.attendance_date.dateChanged.connect(self.load_attendance)
         date_layout.addWidget(self.attendance_date, alignment=Qt.AlignLeft)
         bottom_layout.addLayout(date_layout)
         
@@ -1374,25 +1365,6 @@ class MainMenuTeacher(QMainWindow):
         
         top_layout.addStretch()
         
-        refresh_button = QPushButton("Обновить")
-        refresh_button.setFixedSize(120, 35)
-        refresh_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
-        refresh_button.clicked.connect(self.load_grades)
-        top_layout.addWidget(refresh_button)
-        
         grades_layout.addLayout(top_layout)
         
         # для таблицы
@@ -1469,6 +1441,7 @@ class MainMenuTeacher(QMainWindow):
             padding: 5px;
             font-family: Roboto;
         """)
+        self.grades_date.dateChanged.connect(self.load_grades)
         date_layout.addWidget(self.grades_date, alignment=Qt.AlignLeft)
         bottom_layout.addLayout(date_layout)
         

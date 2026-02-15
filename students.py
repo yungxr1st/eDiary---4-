@@ -563,21 +563,25 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             query = ("""
                 select 
-                    s.day_of_week, sub.subject_name, nc.num, nc.letter,
-                    u.surname + ' ' + LEFT(u.name, 1) + '.' + LEFT(u.patronymic, 1) + '.' as teacher_name,
-                    cab.num
+                    s.day_of_week, 
+                    sub.subject_name, 
+                    convert(varchar, n_c.num) + n_c.letter as group_name,
+                    u.surname + ' ' + left(u.name, 1) + '.' + left(u.patronymic, 1) + '.' as teacher_name,
+                    cab.num,
+                    case s.lesson_num
+                        when 1 then '14:00'
+                        when 2 then '15:00'
+                        when 3 then '16:00'
+                        when 4 then '17:00'
+                        when 5 then '18:00'
+                    end as lesson_time
                 from schedule s
-                inner join name_class nc ON s.id_name_class = nc.id_name_class
-                inner join subject sub ON s.id_subject = sub.id_subject
-                inner join users u ON s.id_user = u.id_user
+                inner join subject sub on sub.id_subject = s.id_subject
+                inner join name_class n_c on n_c.id_name_class = s.id_name_class
+                inner join users u on u.id_user = s.id_user
                 inner join cabinet cab on cab.id_cabinet = s.id_cabinet
-                where nc.id_name_class in (
-                    select c2.id_class 
-                    from class c2 
-                    inner join subj_students ss on c2.id_class = ss.id_user
-	                inner join name_class on name_class.id_name_class = c2.id_name_class 
-                    where ss.id_user = ?
-                )
+                inner join class c on c.id_name_class = n_c.id_name_class
+                where c.id_user = ?
                 order by 
                     case s.day_of_week
                         when 'Понедельник' then 1
@@ -603,14 +607,13 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 for lesson in schedule_data:
                     day_of_week = lesson[0]
                     subject_name = lesson[1]
-                    class_num = lesson[2]
-                    class_letter = lesson[3]
-                    teacher_name = lesson[4]
-                    cabinet = lesson[5]
-
-                    class_group = f"{class_num}{class_letter}"
+                    group_name = lesson[2]
+                    teacher_name = lesson[3]
+                    cabinet = lesson[4]
+                    lesson_time = lesson[5]
                     
-                    lesson_text = f"{subject_name}, {class_group}, {teacher_name}, {cabinet}"
+                    lesson_text = (f"{subject_name}, {group_name}, "
+                        f"{teacher_name}, {cabinet}\n  Начало в: {lesson_time}")
                     
                     if day_of_week != current_day:
                         current_day = day_of_week
