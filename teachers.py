@@ -258,7 +258,7 @@ class MainMenuTeacher(QMainWindow):
 
     def load_schedule(self): # загрузка расписания
         try:
-            cursor = self.conn.cursor()                          # переписать запрос для получения расписания
+            cursor = self.conn.cursor()
 
             query = ("""
                 select 
@@ -921,6 +921,7 @@ class MainMenuTeacher(QMainWindow):
             margin-bottom: 10px;
         """)
         attendance_layout.addWidget(attendance_label)
+        attendance_layout.addSpacing(2)
         
         top_layout = QHBoxLayout() # для группы и кнопки обновить
         
@@ -997,6 +998,7 @@ class MainMenuTeacher(QMainWindow):
         header.resizeSection(1, 300)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # статус посещаемости
         attendance_layout.addWidget(self.attendance_table)
+        attendance_layout.addSpacing(2)
         
         # для выбора даты, типа статуса посещения и кнопки добавления 
         bottom_layout = QHBoxLayout()
@@ -1066,7 +1068,6 @@ class MainMenuTeacher(QMainWindow):
         self.add_attendance_button.clicked.connect(self.add_attendance)
         self.add_attendance_button.setEnabled(False)
         add_button_layout.addWidget(self.add_attendance_button)
-        add_button_layout.addStretch()
         
         bottom_layout.addLayout(add_button_layout)
         
@@ -1343,6 +1344,7 @@ class MainMenuTeacher(QMainWindow):
             margin-bottom: 10px;
         """)
         grades_layout.addWidget(grades_label)
+        grades_layout.addSpacing(2)
         
         top_layout = QHBoxLayout() # для группы и кнопки обновить
         
@@ -1421,6 +1423,7 @@ class MainMenuTeacher(QMainWindow):
         header.resizeSection(2, 70)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # тип оценки
         grades_layout.addWidget(self.grades_table)
+        grades_layout.addSpacing(2)
         
         # для выбора даты, типа статуса посещения и кнопки добавления 
         bottom_layout = QHBoxLayout()

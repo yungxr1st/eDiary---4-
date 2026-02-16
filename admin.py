@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, 
                              QRadioButton, QScrollArea)
 from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
 from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
+import re
 
 
 class MainMenuAdmin(QMainWindow):
@@ -382,6 +383,7 @@ class AddEditUserDialog(QDialog):
 
         self.surname_edit = QLineEdit()
         self.surname_edit.setFixedSize(250, 35)
+        self.surname_edit.setMaxLength(30)
         self.surname_edit.setFont(QFont("Roboto", 10))
         self.surname_edit.setStyleSheet("""
             border-radius: 5px;
@@ -396,6 +398,7 @@ class AddEditUserDialog(QDialog):
 
         self.name_edit = QLineEdit()
         self.name_edit.setFixedSize(250, 35)
+        self.name_edit.setMaxLength(30)
         self.name_edit.setFont(QFont("Roboto", 10))
         self.name_edit.setStyleSheet("""
             border-radius: 5px;
@@ -410,6 +413,7 @@ class AddEditUserDialog(QDialog):
 
         self.patronymic_edit = QLineEdit()
         self.patronymic_edit.setFixedSize(250, 35)
+        self.patronymic_edit.setMaxLength(30)
         self.patronymic_edit.setFont(QFont("Roboto", 10))
         self.patronymic_edit.setStyleSheet("""
             border-radius: 5px;
@@ -424,6 +428,7 @@ class AddEditUserDialog(QDialog):
 
         self.login_edit = QLineEdit()
         self.login_edit.setFixedSize(250, 35)
+        self.login_edit.setMaxLength(20)
         self.login_edit.setFont(QFont("Roboto", 10))
         self.login_edit.setStyleSheet("""
             border-radius: 5px;
@@ -438,6 +443,7 @@ class AddEditUserDialog(QDialog):
 
         self.password_edit = QLineEdit()
         self.password_edit.setFixedSize(250, 35)
+        self.password_edit.setMaxLength(20)
         self.password_edit.setFont(QFont("Roboto", 10))
         self.password_edit.setEchoMode(QLineEdit.Password)
         self.password_edit.setStyleSheet("""
@@ -606,7 +612,25 @@ class AddEditUserDialog(QDialog):
             errors.append("Введите отчество")
         if not self.login_edit.text().strip():
             errors.append("Введите логин")
+
+        text_check = r'^[а-яА-ЯёЁ\s\-]+$'
+        if not re.match(text_check, self.surname_edit.text().strip()):
+            QMessageBox.warning(self, "Предупреждение", "Фамилия пользователя должна состоять только из букв")
+            return
+        if not re.match(text_check, self.name_edit.text().strip()):
+            QMessageBox.warning(self, "Предупреждение", "Имя пользователя должно состоять только из букв")
+            return
+        if not re.match(text_check, self.patronymic_edit.text().strip()):
+            QMessageBox.warning(self, "Предупреждение", "Отчество пользователя должно состоять только из букв")
+            return
         
+        login_check = r'^[a-zA-Z0-9_]+$'
+        if not re.match(login_check, self.login_edit.text().strip()):
+            QMessageBox.warning(self, "Предупреждение", 
+                "Логин пользователя должен состоять только из букв, "
+                "цифр или специального символа '_'")
+            return
+        # сделать ограничение по символам
         try:
             cursor = self.conn.cursor()
             query = "select count(*) from users where login = ?"
@@ -875,6 +899,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
 
         self.subject_line = QLineEdit()
         self.subject_line.setFixedSize(150, 30)
+        self.subject_line.setMaxLength(20)
         self.subject_line.setFont(QFont("Roboto", 10))
         self.subject_line.setStyleSheet("""
             border-radius: 5px;
@@ -1265,6 +1290,15 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             QMessageBox.warning(self, "Предупреждение", "Введите название предмета")
             return
         
+        if len(subject_name) <= 2:
+            QMessageBox.warning(self, "Предупреждение", "Название предмета должно содержать больше двух букв")
+            return
+        
+        text_check = r'^[а-яА-ЯёЁ\s]+$'
+        if not re.match(text_check, subject_name):
+            QMessageBox.warning(self, "Предупреждение", "Название предмета должно состоять только из букв")
+            return
+        
         # проверка существующих предметов
         try:
             cursor = self.conn.cursor()
@@ -1301,6 +1335,14 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         
         if not cabinet_name:
             QMessageBox.warning(self, "Предупреждение", "Введите номер кабинета")
+            return
+        
+        text_check = r'^(\d{1,3})([а-яА-ЯёЁ]{1})?$'
+        if not re.match(text_check, cabinet_name):
+            QMessageBox.warning(self, "Предупреждение", 
+                "Проверьте правильность введенного кабинета.\n"
+                "Номер кабинета должен быть указан по следующему примеру: '101а'\n" 
+                "Буквы должны соответстовать кириллице")
             return
         
         # проверка существующих кабинетов
