@@ -65,6 +65,20 @@ class MainMenuAdmin(QMainWindow):
         self.button_exit.clicked.connect(self.logout)
         main_layout_top.addWidget(self.button_exit)
 
+        self.users_text = QLineEdit()
+        self.users_text.setPlaceholderText("Начните вводить ФИО пользователя")
+        self.users_text.setMaxLength(93)
+        self.users_text.setFixedSize(300, 30)
+        self.users_text.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            padding: 5px;
+            font-family: roboto;
+            font-size: 12;
+        """)
+        self.users_text.textChanged.connect(self.filter_users)
+        main_layout.addWidget(self.users_text, alignment=Qt.AlignCenter)
+
         # кнопки добавить/редактировать/удалить
         buttons_layout = QHBoxLayout()
         main_layout.addLayout(buttons_layout)
@@ -256,6 +270,75 @@ class MainMenuAdmin(QMainWindow):
                     u.is_active
                 from users u
                 inner join role r on u.id_role = r.id_role
+                order by u.surname, u.name
+            """)
+            
+            cursor.execute(query)
+            users_data = cursor.fetchall()
+            
+            self.users_table.setRowCount(len(users_data))
+            
+            total_users = 0
+            active_users = 0
+            inactive_users = 0
+            
+            for row, user in enumerate(users_data):
+                user_id = user[0]
+                surname = user[1]
+                name = user[2]
+                patronymic = user[3]
+                login = user[4]
+                role_name = user[5]
+                is_active = bool(user[6])
+                
+                total_users += 1
+                if is_active:
+                    active_users += 1
+                else:
+                    inactive_users += 1
+                
+                items = [
+                    QTableWidgetItem(surname if surname else ""),
+                    QTableWidgetItem(name if name else ""),
+                    QTableWidgetItem(patronymic if patronymic else ""),
+                    QTableWidgetItem(login),
+                    QTableWidgetItem(role_name),
+                    QTableWidgetItem("Да" if is_active else "Нет")
+                ]
+                
+                for col, item in enumerate(items):
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    if col == 5:
+                        item.setForeground(QColor("#27ae60") if is_active else QColor("#e74c3c"))
+                        item.setTextAlignment(Qt.AlignCenter)
+                    self.users_table.setItem(row, col, item)
+            
+            cursor.close()
+            
+            self.total_users_label.setText(f"Всего пользователей: {total_users}")
+            self.active_users_label.setText(f"Активных: {active_users}")
+            self.inactive_users_label.setText(f"Неактивных: {inactive_users}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить пользователей: {str(e)}")
+
+    def filter_users(self):
+        try:
+            cursor = self.conn.cursor()
+            user_fio = self.users_text.text()
+            query = (f"""
+                select 
+                    u.id_user,
+                    u.surname,
+                    u.name,
+                    u.patronymic,
+                    u.login,
+                    r.title as role_name,
+                    u.is_active
+                from users u
+                inner join role r on u.id_role = r.id_role
+                where (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
+                or u.patronymic like '%{user_fio}%')
                 order by u.surname, u.name
             """)
             
@@ -593,7 +676,8 @@ class AddEditUserDialog(QDialog):
                     insert into users (surname, name, patronymic, login, password, id_role, is_active)
                     values (?, ?, ?, ?, ?, ?, ?)
                 """, (surname, name, patronymic, login, password_hash, role_id, is_active))
-            
+
+            QMessageBox.information(self, "Успех", "Пользователь успешно сохранен")
             self.conn.commit()
             cursor.close()
             self.accept()
@@ -604,28 +688,26 @@ class AddEditUserDialog(QDialog):
     def validate_data(self):
         errors = []
         
-        if not self.name_edit.text().strip():
-            errors.append("Введите имя")
-        if not self.surname_edit.text().strip():
-            errors.append("Введите фамилию")
-        if not self.patronymic_edit.text().strip():
-            errors.append("Введите отчество")
-        if not self.login_edit.text().strip():
-            errors.append("Введите логин")
+        if (not self.name_edit.text().strip() or 
+            not self.surname_edit.text().strip() or 
+            not self.patronymic_edit.text().strip() or 
+            not self.login_edit.text().strip()):
+            QMessageBox.warning(self, "Ошибка", "Необходимо заполнить все поля")
+            return
 
         text_check = r'^[а-яА-ЯёЁ\s\-]+$'
-        if not re.match(text_check, self.surname_edit.text().strip()):
+        if not re.match(text_check, self.surname_edit.text()):
             QMessageBox.warning(self, "Предупреждение", "Фамилия пользователя должна состоять только из букв")
             return
-        if not re.match(text_check, self.name_edit.text().strip()):
+        if not re.match(text_check, self.name_edit.text()):
             QMessageBox.warning(self, "Предупреждение", "Имя пользователя должно состоять только из букв")
             return
-        if not re.match(text_check, self.patronymic_edit.text().strip()):
+        if not re.match(text_check, self.patronymic_edit.text()):
             QMessageBox.warning(self, "Предупреждение", "Отчество пользователя должно состоять только из букв")
             return
         
         login_check = r'^[a-zA-Z0-9_]+$'
-        if not re.match(login_check, self.login_edit.text().strip()):
+        if not re.match(login_check, self.login_edit.text()):
             QMessageBox.warning(self, "Предупреждение", 
                 "Логин пользователя должен состоять только из букв, "
                 "цифр или специального символа '_'")
@@ -643,14 +725,10 @@ class AddEditUserDialog(QDialog):
             cursor.execute(query, params)
             count = cursor.fetchone()[0]
             if count > 0:
-                errors.append("Пользователь с таким логином уже существует")
+                QMessageBox.warning(self, "Предупреждение", "Пользователь с таким логином уже существует")
             cursor.close()
         except:
             pass
-        
-        if errors:
-            QMessageBox.warning(self, "Ошибка валидации", "\n".join(errors))
-            return False
         
         return True
     

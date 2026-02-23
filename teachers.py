@@ -1076,7 +1076,7 @@ class MainMenuTeacher(QMainWindow):
         # для данных из выбранной строки в таблице
         self.selected_student_id = None
         self.selected_subject_id = None
-        self.selected_lesson_id = None
+        self.selected_attendance_id = None
 
     def load_attendance(self): # загрузка посещаемости
         try:
@@ -1094,6 +1094,7 @@ class MainMenuTeacher(QMainWindow):
             cursor = self.conn.cursor()
             query = """
                 select 
+	                a.id_attendance,
                     s.id_subject,
                     s.subject_name,
                     u.id_user,
@@ -1108,7 +1109,8 @@ class MainMenuTeacher(QMainWindow):
                 inner join subject s on s.id_subject = l.id_subject
                 inner join schedule sch on sch.id_name_class = n_c.id_name_class
                 where sch.id_user = ? and sch.id_name_class = ? and l.date = ?
-                group by s.id_subject, s.subject_name, u.id_user, u.surname, u.name, u.patronymic, t_a.title
+                group by a.id_attendance, s.id_subject, s.subject_name, u.id_user, 
+	                u.surname, u.name, u.patronymic, t_a.title
                 order by s.subject_name, u.surname, u.name, u.patronymic
             """
             cursor.execute(query, (self.id_user, selected_group_id, attendance_date_str))
@@ -1118,29 +1120,42 @@ class MainMenuTeacher(QMainWindow):
             self.attendance_table.setRowCount(len(attendance_data))
             
             for row, record in enumerate(attendance_data):
-                subject_id = record[0]
-                subject_name = record[1]
-                student_id = record[2]
-                fio = record[3]
-                attendance_status = record[4]
+                attendance_id = record[0]
+                subject_id = record[1]
+                subject_name = record[2]
+                student_id = record[3]
+                fio = record[4]
+                attendance_status = record[5]
                 
                 # предмет
                 subject_item = QTableWidgetItem(subject_name)
-                subject_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                subject_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 
+                    'student_id': student_id, 
+                    'attendance_id': attendance_id
+                })
                 subject_item.setFlags(subject_item.flags() & ~Qt.ItemIsEditable)
                 subject_item.setTextAlignment(Qt.AlignCenter)
                 self.attendance_table.setItem(row, 0, subject_item)
                 
                 # фио
                 fio_item = QTableWidgetItem(fio)
-                fio_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                fio_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 
+                    'student_id': student_id, 
+                    'attendance_id': attendance_id
+                })
                 fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
                 fio_item.setTextAlignment(Qt.AlignCenter)
                 self.attendance_table.setItem(row, 1, fio_item)
                 
                 # статус посещаемости
                 status_item = QTableWidgetItem(attendance_status)
-                status_item.setData(Qt.UserRole, {'subject_id': subject_id, 'student_id': student_id})
+                status_item.setData(Qt.UserRole, {
+                    'subject_id': subject_id, 
+                    'student_id': student_id, 
+                    'attendance_id': attendance_id
+                })
                 status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
                 status_item.setTextAlignment(Qt.AlignCenter)
                 
@@ -1252,14 +1267,17 @@ class MainMenuTeacher(QMainWindow):
             if item_data and 'student_id' in item_data and 'subject_id' in item_data:
                 self.selected_student_id = item_data['student_id']
                 self.selected_subject_id = item_data['subject_id']
+                self.selected_attendance_id = item_data['attendance_id']
                 self.add_attendance_button.setEnabled(True)
             else:
                 self.selected_student_id = None
                 self.selected_subject_id = None
+                self.selected_attendance_id = None
                 self.add_attendance_button.setEnabled(False)
         else:
             self.selected_student_id = None
             self.selected_subject_id = None
+            self.selected_attendance_id = None
             self.add_attendance_button.setEnabled(False)
 
     def add_attendance(self): # изменение записи о посещаемости
@@ -1283,30 +1301,12 @@ class MainMenuTeacher(QMainWindow):
         try:
             cursor = self.conn.cursor()
             
-            lesson_query = """
-                select id_lesson 
-                from lesson 
-                where id_subject = ? and id_name_class = ? and date = ?
-            """
-            cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, attendance_date_str))
-            lesson_data = cursor.fetchone()
-            
-            lesson_id = lesson_data[0]
-            
-            check_query = """
-                select id_attendance 
-                from attendance 
-                where id_user = ? and id_lesson = ?
-            """
-            cursor.execute(check_query, (self.selected_student_id, lesson_id)) 
-            existing_attendance = cursor.fetchone()
-            
             update_query = """
                 update attendance 
                 set id_type_att = ? 
                 where id_attendance = ?
             """
-            cursor.execute(update_query, (status_type_id, existing_attendance[0]))
+            cursor.execute(update_query, (status_type_id, self.selected_attendance_id))
             
             self.conn.commit()
             cursor.close()
@@ -1366,6 +1366,31 @@ class MainMenuTeacher(QMainWindow):
         top_layout.addWidget(self.grades_group_combo)
         
         top_layout.addStretch()
+
+        self.check_stats = QPushButton()
+        self.check_stats.setText("Средний балл группы")
+        self.check_stats.setFixedSize(140, 30)
+        self.check_stats.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 12px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.check_stats.setEnabled(False)
+        self.check_stats.clicked.connect(self.check_user_stats)
+        top_layout.addWidget(self.check_stats)
         
         grades_layout.addLayout(top_layout)
         
@@ -1523,7 +1548,7 @@ class MainMenuTeacher(QMainWindow):
         # для данных из выбранной строки в таблице
         self.selected_student_id = None
         self.selected_subject_id = None
-        self.selected_lesson_id = None
+        self.selected_grade_id = None
 
     def load_grades(self):
         try:
@@ -1536,7 +1561,10 @@ class MainMenuTeacher(QMainWindow):
                 self.selected_student_id = None
                 self.selected_subject_id = None
                 self.add_grade_button.setEnabled(False)
+                self.check_stats.setEnabled(False)
                 return
+            
+            self.check_stats.setEnabled(True)
                 
             cursor = self.conn.cursor()
             query = """
@@ -1676,14 +1704,17 @@ class MainMenuTeacher(QMainWindow):
             if item_data and 'student_id' in item_data and 'subject_id' in item_data:
                 self.selected_student_id = item_data['student_id']
                 self.selected_subject_id = item_data['subject_id']
+                self.selected_grade_id = item_data['grade_id']
                 self.add_grade_button.setEnabled(True)
             else:
                 self.selected_student_id = None
                 self.selected_subject_id = None
+                self.selected_grade_id = None
                 self.add_grade_button.setEnabled(False)
         else:
             self.selected_student_id = None
             self.selected_subject_id = None
+            self.selected_grade_id = None
             self.add_grade_button.setEnabled(False)
 
     def add_grades(self): # изменение записи об оценке
@@ -1707,24 +1738,6 @@ class MainMenuTeacher(QMainWindow):
         try:
             cursor = self.conn.cursor()
             
-            lesson_query = """
-                select id_lesson 
-                from lesson 
-                where id_subject = ? and id_name_class = ? and date = ?
-            """
-            cursor.execute(lesson_query, (self.selected_subject_id, selected_group_id, grades_date_str))
-            lesson_data = cursor.fetchone()
-            
-            lesson_id = lesson_data[0]
-            
-            check_query = """
-                select id_grade
-                from grade 
-                where id_user = ? and id_lesson = ?
-            """
-            cursor.execute(check_query, (self.selected_student_id, lesson_id)) 
-            existing_grade = cursor.fetchone()
-
             grade = int(self.grades_db_combo.currentText())
             
             update_query = """
@@ -1732,7 +1745,22 @@ class MainMenuTeacher(QMainWindow):
                 set id_type_gr = ?, grade = ?
                 where id_grade = ?
             """
-            cursor.execute(update_query, (type_id, grade, existing_grade[0]))
+            cursor.execute(update_query, (type_id, grade, self.selected_grade_id))
+            
+            update_avg_query = """
+                declare @avg_grade varchar(4); declare @id_user int = ?;
+                declare @id_subject int = ?;
+                select @avg_grade = cast(round(avg(cast(g.grade as float)), 2) as varchar(4))
+                from grade g 
+                inner join lesson l on l.id_lesson = g.id_lesson
+                where g.id_user = @id_user and l.id_subject = @id_subject
+                begin
+                    update subj_students
+                    set avg_grade = @avg_grade
+                    where id_user = @id_user and id_subject = @id_subject;
+                end
+            """
+            cursor.execute(update_avg_query, (self.selected_student_id, self.selected_subject_id))
             
             self.conn.commit()
             cursor.close()
@@ -1745,6 +1773,114 @@ class MainMenuTeacher(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось изменить запись об оценке: {str(e)}")
             if 'cursor' in locals():
                 self.conn.rollback()
+
+    def check_user_stats(self):
+        try:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"{self.grades_group_combo.currentText()}")
+            dialog.setFixedSize(350, 300)
+            dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+            
+            layout = QVBoxLayout()
+            dialog.setLayout(layout)
+            
+            avg_grade_table = QTableWidget()
+            avg_grade_table.setColumnCount(2)
+            avg_grade_table.setHorizontalHeaderLabels(["Ученик", "Средний балл"])
+            avg_grade_table.horizontalHeader().setStretchLastSection(True)
+            avg_grade_table.setSelectionBehavior(QTableWidget.SelectRows)
+            avg_grade_table.setSelectionMode(QTableWidget.SingleSelection)
+            avg_grade_table.setEditTriggers(QTableWidget.NoEditTriggers)
+            avg_grade_table.setStyleSheet("""
+                QTableWidget {
+                    background-color: white;
+                    border: 1px solid #ccc;
+                    border-radius: 5px;
+                    font-family: Roboto;
+                    gridline-color: #eee;
+                    outline: 0;
+                }
+                QTableWidget::item {
+                    padding: 8px;
+                    border-bottom: 1px solid #f0f0f0;
+                }
+                QHeaderView::section {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border: none;
+                }
+                QTableWidget::item:selected {
+                    background-color: #e8f4fc;
+                    color: #2c3e50;
+                }
+                QHeaderView::section:vertical {
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    width: 0px;
+                }
+                QTableWidget::item:focus {
+                    outline: none;
+                    border: none;
+                }
+            """)
+
+            cursor = self.conn.cursor()
+            
+            avg_grades_query = """
+                select
+                    u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
+                    isnull(s_s.avg_grade, 'н/а') as avg_grade
+                from subj_teachers s_t
+                inner join subject s on s.id_subject = s_t.id_subject
+                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subj_students s_s on s_s.id_subject = s.id_subject
+                where n_c.id_name_class = ?
+                order by u.surname + ' ' + u.name + ' ' + u.patronymic
+            """
+            cursor.execute(avg_grades_query, (self.grades_group_combo.currentData()))
+            grades_data = cursor.fetchall()
+            
+            cursor.close()
+            
+            avg_grade_table.setRowCount(len(grades_data))
+            
+            for row, record in enumerate(grades_data):
+                fio = record[0]
+                avg_grade = record[1]
+                
+                # группа
+                student_name = QTableWidgetItem(fio)
+                student_name.setFlags(student_name.flags() & ~Qt.ItemIsEditable)
+                student_name.setTextAlignment(Qt.AlignCenter)
+                avg_grade_table.setItem(row, 0, student_name)
+                
+                # средний балл
+                avg = QTableWidgetItem(f"{str(avg_grade)}")
+                avg.setFlags(avg.flags() & ~Qt.ItemIsEditable)
+                avg.setTextAlignment(Qt.AlignCenter)
+                
+                # цвет оценки
+                if str(avg_grade) == "н/а" or float(avg_grade) <= 2:
+                    avg.setForeground(QColor("#e74c3c"))  # красный
+                elif float(avg_grade) == 3:
+                    avg.setForeground(QColor("#f39c12"))  # оранжевый
+                elif float(avg_grade) >= 4:
+                    avg.setForeground(QColor("#27ae60"))  # зеленый
+                
+                avg_grade_table.setItem(row, 1, avg)
+            
+            avg_grade_table.resizeColumnsToContents()
+            layout.addWidget(avg_grade_table)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить средний балл группы: {str(e)}")
 
     def show_tests(self):
         self.clear_content_layout()
@@ -2323,6 +2459,7 @@ class TestConstructor(QMainWindow):
         name_label = QLabel("Название теста:")
         name_label.setStyleSheet("font-family: Roboto; color: #333;")
         self.test_name_input = QLineEdit()
+        self.test_name_input.setMaxLength(50)
         self.test_name_input.setPlaceholderText("Введите название теста")
         self.test_name_input.setStyleSheet("""
             border-radius: 5px;
@@ -2405,6 +2542,7 @@ class TestConstructor(QMainWindow):
         question_text_label.setStyleSheet("font-family: Roboto; color: #333;")
         question_layout.addWidget(question_text_label)
         self.question_text_edit = QTextEdit()
+        #self.question_text_edit.
         self.question_text_edit.setMaximumHeight(80)
         self.question_text_edit.setPlaceholderText("Введите текст вопроса...")
         self.question_text_edit.setStyleSheet("""
@@ -2413,6 +2551,7 @@ class TestConstructor(QMainWindow):
             padding: 5px;
             font-family: Roboto;
         """)
+        self.question_text_edit.textChanged.connect(self.limit_question_length)
         question_layout.addWidget(self.question_text_edit)
 
         # ответы
@@ -2426,6 +2565,7 @@ class TestConstructor(QMainWindow):
             answer_checkbox = QCheckBox(f"{i+1}.")
             answer_checkbox.setStyleSheet("font-family: Roboto;")
             self.answer_input = QLineEdit()
+            self.answer_input.setMaxLength(50)
             self.answer_input.setPlaceholderText("Введите вариант ответа")
             self.answer_input.setStyleSheet("""
                 border-radius: 5px;
@@ -2562,7 +2702,20 @@ class TestConstructor(QMainWindow):
 
         self.load_groups_from_db()
 
-    def check_question_exists(self, question_text, answers_data): # проверка на доабвленный вопрос
+    def limit_question_length(self): # ограничение символов для текста вопроса
+        text = self.question_text_edit.toPlainText()
+        
+        if len(text) > 150:
+            cursor = self.question_text_edit.textCursor()
+            position = cursor.position()
+            
+            self.question_text_edit.setPlainText(text[:150])
+            
+            new_position = min(position, 150)
+            cursor.setPosition(new_position)
+            self.question_text_edit.setTextCursor(cursor)
+
+    def check_question_exists(self, question_text, answers_data): # проверка на добавленный вопрос
         try:
             cursor = self.conn.cursor()
             
@@ -2618,23 +2771,26 @@ class TestConstructor(QMainWindow):
             
             if not item_data:
                 continue
-            
-            if item_data['question_text'] != question_text:
-                continue
-            
-            item_answers = item_data['answers']
-            if len(item_answers) != len(answers_data):
-                continue
-            
-            all_match = True
-            for j in range(len(answers_data)):
-                if (item_answers[j]['text'] != answers_data[j]['text'] or 
-                    item_answers[j]['is_correct'] != answers_data[j]['is_correct']):
-                    all_match = False
-                    break
-            
-            if all_match:
+
+            if item_data['question_text'] == question_text:
                 return True
+            
+            # if item_data['question_text'] != question_text:
+            #     continue
+            
+            # item_answers = item_data['answers']
+            # if len(item_answers) != len(answers_data):
+            #     continue
+            
+            # all_match = True
+            # for j in range(len(answers_data)):
+            #     if (item_answers[j]['text'] != answers_data[j]['text'] or 
+            #         item_answers[j]['is_correct'] != answers_data[j]['is_correct']):
+            #         all_match = False
+            #         break
+            
+            # if all_match:
+            #     return True
         
         return False
 
@@ -2911,8 +3067,25 @@ class TestConstructor(QMainWindow):
         if self.is_question_in_test_list(question_text, answers_data):
             QMessageBox.warning(
                 self,
-                "Вопрос уже добавлен",
-                "Такой вопрос уже есть в тесте."
+                "Ошибка",
+                "Данный вопрос уже есть в тесте."
+            )
+            return
+        
+        answer_texts = [answer['text'] for answer in answers_data]
+        duplicates = []
+        seen = set()
+        for answer_text in answer_texts:
+            if answer_text in seen:
+                duplicates.append(answer_text)
+            else:
+                seen.add(answer_text)
+        
+        if duplicates:
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                f"Все варианты ответов должны быть уникальными"
             )
             return
 

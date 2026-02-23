@@ -213,6 +213,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         users_layout.addWidget(users_label)
 
         self.users_text = QLineEdit()
+        self.users_text.setMaxLength(90)
         self.users_text.setPlaceholderText("Начните вводить ФИО пользователя")
         self.users_text.setFixedSize(300, 30)
         self.users_text.setStyleSheet("""
@@ -461,6 +462,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         top_layout = QHBoxLayout() # для строки поиска
 
         self.stats_text = QLineEdit()
+        self.stats_text.setMaxLength(90)
         self.stats_text.setPlaceholderText("Начните вводить ФИО пользователя")
         self.stats_text.setFixedSize(300, 30)
         self.stats_text.setStyleSheet("""
@@ -1205,11 +1207,12 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     convert(varchar, n_c.num) + n_c.letter as [group],
                     s.subject_name,
                     isnull(s_s.avg_grade, 'н/а') as avg_grade
-                from subj_students s_s
-                inner join users u on u.id_user = s_s.id_user
-                inner join class c on c.id_user = u.id_user
-                inner join name_class n_c on n_c.id_name_class = c.id_name_class
-                inner join [subject] s on s.id_subject = s_s.id_subject
+                from subj_teachers s_t
+                inner join subject s on s.id_subject = s_t.id_subject
+                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                inner join class c on c.id_name_class = n_c.id_name_class
+                inner join users u on u.id_user = c.id_user
+                inner join subj_students s_s on s_s.id_subject = s.id_subject
                 where s_s.id_user = ?
                 order by s.subject_name
             """
@@ -1258,7 +1261,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             dialog.exec_()
             
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить оценки за тест: {str(e)}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить средний балл ученика: {str(e)}")
 
     def load_groups_for_stats(self): # выбор элемента для загрузки групп
         self.load_groups_into_combo(self.stats_group_combo) # в скобках указан элемент для подстановки
@@ -1418,6 +1421,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         groups_right_layout.addWidget(fio_label, alignment=Qt.AlignLeft)
         
         self.groups_fio = QLineEdit()
+        self.groups_fio.setMaxLength(93)
         self.groups_fio.setFixedSize(230, 35)
         self.groups_fio.setStyleSheet("""
             border-radius: 5px;
@@ -1591,6 +1595,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         subjects_right_layout.addWidget(teacher_fio_label, alignment=Qt.AlignLeft)
         
         self.subject_teacher_fio = QLineEdit()
+        self.subject_teacher_fio.setMaxLength(93)
         self.subject_teacher_fio.setFixedSize(230, 35)
         self.subject_teacher_fio.setStyleSheet("""
             border-radius: 5px;
@@ -1773,16 +1778,43 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         if group:
             QMessageBox.warning(self, "Ошибка", "Ученик уже состоит в этой группе")
             return
+
+        subject_cursor = self.conn.cursor()
+        subject_query = """
+            select
+                s_t.id
+            from subj_teachers s_t
+            where s_t.id_name_class = ?
+        """
+        subject_cursor.execute(subject_query, (self.groups_group_combo.currentData()))
+        subject = subject_cursor.fetchone()
+        subject_cursor.close()
+
+        if not subject:
+            QMessageBox.warning(self, "Ошибка", "Данной группе не назначен преподаватель")
+            return
+        
+        # сделать предупреждение о невозможности добавить ученика в группу, если в ней отсутствует преподаватель
+        # если преподаватель есть - добавить строку добавления записи в таблицу subj_students
             
         try:
             cursor = self.conn.cursor()
             
             query = """
+                declare @id_subject int;
+                select
+                    @id_subject = s_t.id_subject
+                from subj_teachers s_t
+                where s_t.id_name_class = ?;
                 insert into class(id_name_class, id_user)
-                values(?, ?)
+                values(?, ?);
+                insert into subj_students(id_subject, id_user)
+                values (@id_subject, ?)
             """
             cursor.execute(query, (
                 self.groups_group_combo.currentData(),
+                self.groups_group_combo.currentData(),
+                self.selected_groups_user,
                 self.selected_groups_user
             ))
 
@@ -1854,10 +1886,22 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             cursor = self.conn.cursor()
             
             delete_query = """
+                declare @id_subject int;
+                select
+                    @id_subject = s_t.id_subject
+                from subj_teachers s_t
+                where s_t.id_name_class = ?;
                 delete from class
-                where id_user = ? and id_name_class = ?
+                where id_user = ? and id_name_class = ?;
+                delete from subj_students
+                where id_user = ? and id_subject = @id_subject
             """
-            cursor.execute(delete_query, (self.selected_groups_user, self.groups_group_combo.currentData()))
+            cursor.execute(delete_query, (
+                self.groups_group_combo.currentData(),
+                self.selected_groups_user,
+                self.groups_group_combo.currentData(),
+                self.selected_groups_user
+            ))
             self.conn.commit()
             
             QMessageBox.information(
@@ -3057,6 +3101,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
         surname_label.setFont(QFont("Roboto", 10))
         
         self.surname_edit = QLineEdit()
+        self.surname_edit.setMaxLength(30)
         self.surname_edit.setFixedSize(250, 35)
         self.surname_edit.setFont(QFont("Roboto", 10))
         self.surname_edit.setStyleSheet("""
@@ -3071,6 +3116,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
         name_label.setFont(QFont("Roboto", 10))
 
         self.name_edit = QLineEdit()
+        self.name_edit.setMaxLength(30)
         self.name_edit.setFixedSize(250, 35)
         self.name_edit.setFont(QFont("Roboto", 10))
         self.name_edit.setStyleSheet("""
@@ -3085,6 +3131,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
         patronymic_label.setFont(QFont("Roboto", 10))
 
         self.patronymic_edit = QLineEdit()
+        self.patronymic_edit.setMaxLength(30)
         self.patronymic_edit.setFixedSize(250, 35)
         self.patronymic_edit.setFont(QFont("Roboto", 10))
         self.patronymic_edit.setStyleSheet("""

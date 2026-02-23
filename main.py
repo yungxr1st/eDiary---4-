@@ -29,7 +29,8 @@ database1 = "diary_pd"
 
 conn = pyodbc.connect(
     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
-    ';DATABASE=' + database1 + ';Trusted_Connection=yes;' + 'TrustServerCertificate=yes;')
+    ';DATABASE=' + database1 + ';Trusted_Connection=yes;' + 'TrustServerCertificate=yes;'
+)
 
 
 class LoginWindow(QMainWindow):
@@ -81,6 +82,7 @@ class LoginWindow(QMainWindow):
             font-family: Roboto;
         """)
         self.login_input = QLineEdit()
+        self.login_input.setMaxLength(20)
         self.login_input.setPlaceholderText("Введите логин")
         self.login_input.setStyleSheet(input_style)
         self.login_input.setFixedSize(300, 35)
@@ -94,6 +96,7 @@ class LoginWindow(QMainWindow):
             font-family: Roboto;            
         """)
         self.pswd_input = QLineEdit()
+        self.pswd_input.setMaxLength(20)
         self.pswd_input.setPlaceholderText("Введите пароль")
         self.pswd_input.setStyleSheet(input_style)
         self.pswd_input.setEchoMode(QLineEdit.Password)

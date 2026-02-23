@@ -927,7 +927,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 left join solved_tests s_t on s_t.id_test = t.id_test and s_t.id_user = @id_user
                 where t.id_name_class = ?
                 group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, s_t.grade_percent
-                order by deadline desc, upload desc, t_n.name desc
+                order by t.id_test desc
             """)
             cursor.execute(query, (self.id_user, self.tests_group_combo.currentData()))
             tests_data = cursor.fetchall()
@@ -977,7 +977,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     test_list = QListWidgetItem(test_item)
                     self.tests_table.addItem(test_list)
 
-                    test_list.setData(Qt.UserRole, test_id)
+                    test_list.setData(Qt.UserRole, {"test_id": test_id, "deadline": self.deadline})
 
             else:
                 no_tests_item = QListWidgetItem("Данные о тестах отсутствуют")
@@ -996,13 +996,17 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             self.tests_table.addItem(error_item)
 
     def open_test_window(self, item): # открытие теста
-        if QDate.currentDate() > self.deadline:
-            QMessageBox.warning(self, "Ошибка", "Срок выполнения теста окончен")
-            return
+        test_id = item.data(Qt.UserRole)["test_id"]
+        deadline = item.data(Qt.UserRole)["deadline"]
 
-        test_id = item.data(Qt.UserRole)
         if not test_id:
             QMessageBox.warning(self, "Ошибка", "Не удалось получить информацию о тесте")
+            return
+
+        deadline_date = QDate(deadline.year, deadline.month, deadline.day)
+        current_date = QDate.currentDate()
+        if current_date > deadline_date:
+            QMessageBox.warning(self, "Ошибка", "Срок выполнения теста окончен")
             return
         
         try:
@@ -1223,13 +1227,16 @@ class TestExecutionWindow(QDialog): # окно решения теста
                     select 
                         ta.id_answer,
                         ta.answer,
-                        ta.is_true
+                        ta.is_true,
+                        t_c.id_test
                     from test_answer ta
+                    inner join test_content t_c on t_c.id_answer = ta.id_answer
                     where ta.id_question = ?
+                    and t_c.id_test = ?
                     order by ta.id_answer
                 """)
 
-                cursor.execute(answers_query, (question_id,))
+                cursor.execute(answers_query, (question_id, self.test_id))
                 answers = cursor.fetchall()
                 
                 correct_count = sum(1 for ans in answers if ans[2] == 1)
@@ -1429,7 +1436,8 @@ class TestExecutionWindow(QDialog): # окно решения теста
             "Выход",
             f"Вы хотите выйти из теста?\n\n"
             f"Отвечено вопросов: {answered_count} из {total_questions}\n"
-            f"Все неотвеченные вопросы будут засчитаны как 0 баллов.\n\n",
+            # f"Все неотвеченные вопросы будут засчитаны как 0 баллов.\n\n",
+            f"Все вопросы будут засчитаны как 0 баллов.\n\n",
             QMessageBox.Yes | QMessageBox.No
         )
         yes_button = reply.button(QMessageBox.Yes)
@@ -1483,7 +1491,8 @@ class TestExecutionWindow(QDialog): # окно решения теста
                             correct_answers += 1
             
             if total_questions > 0:
-                percentage = (correct_answers / total_questions) * 100
+                # percentage = (correct_answers / total_questions) * 100
+                percentage = (correct_answers / total_questions) * 0
                 percentage = max(0.0, min(100.0, percentage))
                 
                 if percentage >= 90:
@@ -1534,7 +1543,8 @@ class TestExecutionWindow(QDialog): # окно решения теста
                 self,
                 "Тест завершен",
                 f"Результаты теста: {action}\n\n"
-                f"Правильных ответов: {correct_answers} из {total_questions}\n"
+                f"Правильных ответов: 0 из {total_questions}\n"
+                # f"Правильных ответов: {correct_answers} из {total_questions}\n"
                 f"Процент выполнения: {percentage:.1f}%\n"
                 f"Оценка: {grade}"
             )
