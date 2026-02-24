@@ -868,12 +868,15 @@ class MainMenuTeacher(QMainWindow):
 
             query = """
                 select 
-                    id_name_class,
-                    convert(varchar, num) + letter
-                from name_class
-                order by num, letter
+                    s_t.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter
+                from subj_teachers s_t
+                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                inner join users u on u.id_user = s_t.id_user
+                where u.id_user = ?
+                order by n_c.num, n_c.letter
             """
-            cursor.execute(query)
+            cursor.execute(query, self.id_user)
             groups_data = cursor.fetchall()
             
             self.group_combo.clear()
@@ -1198,13 +1201,16 @@ class MainMenuTeacher(QMainWindow):
 
             query = """
                 select 
-                    id_name_class,
-                    convert(varchar, num) + letter
-                from name_class
-                order by num, letter
+                    s_t.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter
+                from subj_teachers s_t
+                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                inner join users u on u.id_user = s_t.id_user
+                where u.id_user = ?
+                order by n_c.num, n_c.letter
             """
             # cursor.execute(query, (self.id_user,))
-            cursor.execute(query)
+            cursor.execute(query, self.id_user)
             groups_data = cursor.fetchall()
             
             combo_box.clear()
@@ -2949,15 +2955,17 @@ class TestConstructor(QMainWindow):
             cursor = self.conn.cursor()
             
             query = ("""
-                select distinct
-                    nc.id_name_class,
-                    nc.num,
-                    nc.letter
-                from name_class nc
-                order by nc.num, nc.letter
+                select 
+                    s_t.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter
+                from subj_teachers s_t
+                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                inner join users u on u.id_user = s_t.id_user
+                where u.id_user = ?
+                order by n_c.num, n_c.letter
             """)
         
-            cursor.execute(query)
+            cursor.execute(query, self.id_user)
             groups_data = cursor.fetchall()
             
             self.group_combo.clear()
