@@ -1,0 +1,29 @@
+USE msdb;
+GO
+
+EXEC dbo.sp_add_job
+    @job_name = N'GenerateDailyLessons',
+    @enabled = 1,
+    @description = N'Автоматическое создание уроков на день в 6 утра';
+GO
+
+EXEC sp_add_jobstep
+    @job_name = N'GenerateDailyLessons',
+    @step_name = N'GenerateLessons',
+    @subsystem = N'TSQL',
+    @command = N'EXEC diary_pd.dbo.GenerateLessonsForToday;',
+    @database_name = N'diary_pd';
+GO
+
+EXEC sp_add_jobschedule
+    @job_name = N'GenerateDailyLessons',
+    @name = N'DailySchedule',
+    @freq_type = 4,
+    @freq_interval = 1,
+    @active_start_time = 060000; -- 6 утра
+GO
+
+EXEC sp_add_jobserver
+    @job_name = N'GenerateDailyLessons',
+    @server_name = N'DESKTOP-Q4NUJUS\MSSQLSERVER02';
+GO

@@ -1934,22 +1934,22 @@ class MainMenuTeacher(QMainWindow):
         
         top_layout.addStretch()
 
-        date_label = QLabel("Дата занятия:")
-        date_label.setStyleSheet("font-family: Roboto; color: #333;")
-        top_layout.addWidget(date_label, alignment=Qt.AlignLeft)
+        # date_label = QLabel("Дата занятия:")
+        # date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        # top_layout.addWidget(date_label, alignment=Qt.AlignLeft)
         
-        self.tests_date = QDateEdit()
-        self.tests_date.setFixedSize(120, 30)
-        self.tests_date.setCalendarPopup(True)
-        self.tests_date.setDate(QDate.currentDate())
-        self.tests_date.setStyleSheet("""
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            color: #333;
-            padding: 5px;
-            font-family: Roboto;
-        """)
-        top_layout.addWidget(self.tests_date, alignment=Qt.AlignLeft)
+        # self.tests_date = QDateEdit()
+        # self.tests_date.setFixedSize(120, 30)
+        # self.tests_date.setCalendarPopup(True)
+        # self.tests_date.setDate(QDate.currentDate())
+        # self.tests_date.setStyleSheet("""
+        #     border-radius: 5px;
+        #     border: 1px solid #ccc;
+        #     color: #333;
+        #     padding: 5px;
+        #     font-family: Roboto;
+        # """)
+        # top_layout.addWidget(self.tests_date, alignment=Qt.AlignLeft)
         
         tests_layout.addLayout(top_layout)
         
@@ -2089,8 +2089,8 @@ class MainMenuTeacher(QMainWindow):
     def load_tests(self):
         try:
             selected_group_id = self.tests_group_combo.currentData()
-            tests_date = self.tests_date.date()
-            tests_date_str = tests_date.toString("yyyy-MM-dd")
+            # tests_date = self.tests_date.date()
+            # tests_date_str = tests_date.toString("yyyy-MM-dd")
             
             if not selected_group_id:
                 self.tests_table.setRowCount(0)
@@ -2964,7 +2964,6 @@ class TestConstructor(QMainWindow):
                 where u.id_user = ?
                 order by n_c.num, n_c.letter
             """)
-        
             cursor.execute(query, self.id_user)
             groups_data = cursor.fetchall()
             
@@ -2973,10 +2972,10 @@ class TestConstructor(QMainWindow):
             if groups_data:
                 self.group_combo.addItem("Выберите группу")
                 for group in groups_data:
-                    class_num = group[1]
-                    class_letter = group[2]
-                    group_name = f"{class_num}{class_letter}"
-                    self.group_combo.addItem(group_name, group[0])
+                    group_id = group[0]
+                    class_name = group[1]
+                    group_name = f"{class_name}"
+                    self.group_combo.addItem(group_name, group_id)
             else:
                 self.group_combo.addItem("Нет доступных групп")
                 self.group_combo.setEnabled(False)

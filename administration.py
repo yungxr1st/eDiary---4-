@@ -213,7 +213,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         users_layout.addWidget(users_label)
 
         self.users_text = QLineEdit()
-        self.users_text.setMaxLength(90)
+        self.users_text.setMaxLength(92)
         self.users_text.setPlaceholderText("Начните вводить ФИО пользователя")
         self.users_text.setFixedSize(300, 30)
         self.users_text.setStyleSheet("""
@@ -462,7 +462,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         top_layout = QHBoxLayout() # для строки поиска
 
         self.stats_text = QLineEdit()
-        self.stats_text.setMaxLength(90)
+        self.stats_text.setMaxLength(92)
         self.stats_text.setPlaceholderText("Начните вводить ФИО пользователя")
         self.stats_text.setFixedSize(300, 30)
         self.stats_text.setStyleSheet("""
@@ -1421,7 +1421,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         groups_right_layout.addWidget(fio_label, alignment=Qt.AlignLeft)
         
         self.groups_fio = QLineEdit()
-        self.groups_fio.setMaxLength(93)
+        self.groups_fio.setMaxLength(92)
         self.groups_fio.setFixedSize(230, 35)
         self.groups_fio.setStyleSheet("""
             border-radius: 5px;
@@ -1595,7 +1595,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         subjects_right_layout.addWidget(teacher_fio_label, alignment=Qt.AlignLeft)
         
         self.subject_teacher_fio = QLineEdit()
-        self.subject_teacher_fio.setMaxLength(93)
+        self.subject_teacher_fio.setMaxLength(92)
         self.subject_teacher_fio.setFixedSize(230, 35)
         self.subject_teacher_fio.setStyleSheet("""
             border-radius: 5px;

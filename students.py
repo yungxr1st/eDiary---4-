@@ -655,7 +655,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             query = ("""
                 select 
-                    l.date, sub.subject_name, t_att.title as attendance_status,
+                    l.id_lesson, l.date, sub.subject_name, t_att.title as attendance_status,
                     u.surname + ' ' + left(u.name, 1) + '.' + left(u.patronymic, 1) + '.' as teacher_name
                 from lesson l
                 inner join subject sub on sub.id_subject = l.id_subject
@@ -665,7 +665,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 inner join users u on u.id_user = s_t.id_user
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 where a.id_user = ? and n_c.id_name_class = ?
-                order by l.date desc
+                order by l.id_lesson desc
             """)
 
             cursor.execute(query, (self.id_user, self.attendance_group_combo.currentData()))
@@ -677,10 +677,11 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 current_date = None
                 
                 for record in attendance_data:
-                    date = record[0]
-                    subject_name = record[1]
-                    attendance_status = record[2]
-                    teacher_name = record[3]
+                    id_lesson = record[0]
+                    date = record[1]
+                    subject_name = record[2]
+                    attendance_status = record[3]
+                    teacher_name = record[4]
 
                     day_of_week = date.strftime("%A")
                     day_list = {
@@ -834,14 +835,14 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
             query = ("""
                 select 
-                    subject.subject_name, l.date, grade.grade, t_g.title
+                    l.id_lesson, subject.subject_name, l.date, grade.grade, t_g.title
                 from lesson l
                 inner join subject on subject.id_subject = l.id_subject
                 inner join grade on grade.id_lesson = l.id_lesson
                 inner join type_grade t_g on t_g.id_type_gr = grade.id_type_gr
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 where grade.id_user = ? and n_c.id_name_class = ?
-                order by l.date
+                order by l.id_lesson desc
             """)
 
             cursor.execute(query, (self.id_user, self.grades_group_combo.currentData()))
@@ -853,10 +854,23 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 current_date = None
 
                 for record in grades_data:
-                    subject_name = record[0]
-                    date = record[1]
-                    grade = record[2]
-                    title = record[3]
+                    id_lesson = record[0]
+                    subject_name = record[1]
+                    date = record[2]
+                    grade = record[3]
+                    title = record[4]
+
+                    day_of_week = date.strftime("%A")
+                    day_list = {
+                        'Monday': 'Понедельник',
+                        'Tuesday': 'Вторник', 
+                        'Wednesday': 'Среда',
+                        'Thursday': 'Четверг',
+                        'Friday': 'Пятница',
+                        'Saturday': 'Суббота',
+                        'Sunday': 'Воскресенье'
+                    }
+                    day = day_list.get(day_of_week, day_of_week)
 
                     formatted_date = date.strftime("%d.%m.%Y")
                     formatted_grade = str(grade)
@@ -864,7 +878,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     if grade == None:
                         formatted_grade = "нет оценки"
 
-                    date_text = f"Дата урока: {formatted_date}"
+                    date_text = f"Дата урока: {formatted_date} ({day})"
 
                     name_item = QListWidgetItem(f" {subject_name}: {formatted_grade}")
                     name_item.setFlags(Qt.NoItemFlags)
@@ -1260,6 +1274,35 @@ class TestExecutionWindow(QDialog): # окно решения теста
             QMessageBox.critical(self, "Ошибка", f"Ошибка при загрузке вопросов: {str(e)}")
             self.close()
 
+    def calculate_question_score(self, question_data, selected_answers): # подсчет количества баллов за правильные варианты ответов в тесте
+        if not selected_answers:
+            return 0.0
+        
+        correct_answer_ids = [ans[0] for ans in question_data['answers'] if ans[2] == 1]
+        total_correct = len(correct_answer_ids)
+        
+        if total_correct == 0:
+            return 0.0
+        
+        correct_selected = sum(1 for ans_id in selected_answers if ans_id in correct_answer_ids)
+        
+        score = correct_selected / total_correct
+        
+        return round(score, 2)
+    
+    def calculate_total_score(self): # подсчет баллов
+        total_score = 0.0
+        max_possible_score = len(self.questions_data)
+        
+        for question_data in self.questions_data:
+            question_id = question_data['question_id']
+            selected_answers = self.answers.get(question_id, [])
+            
+            question_score = self.calculate_question_score(question_data, selected_answers)
+            total_score += question_score
+        
+        return total_score, max_possible_score
+
     def show_current_question(self): # текущий вопрос
         for i in reversed(range(self.question_layout.count())): 
             self.question_layout.itemAt(i).widget().setParent(None)
@@ -1437,7 +1480,7 @@ class TestExecutionWindow(QDialog): # окно решения теста
             f"Вы хотите выйти из теста?\n\n"
             f"Отвечено вопросов: {answered_count} из {total_questions}\n"
             # f"Все неотвеченные вопросы будут засчитаны как 0 баллов.\n\n",
-            f"Все вопросы будут засчитаны как 0 баллов.\n\n",
+            f"Все ответы будут засчитаны как 0 баллов.\n\n",
             QMessageBox.Yes | QMessageBox.No
         )
         yes_button = reply.button(QMessageBox.Yes)
@@ -1497,7 +1540,7 @@ class TestExecutionWindow(QDialog): # окно решения теста
                 
                 if percentage >= 90:
                     grade = 5
-                elif percentage >= 80:
+                elif percentage >= 75:
                     grade = 4
                 elif percentage >= 50:
                     grade = 3
@@ -1591,61 +1634,25 @@ class TestExecutionWindow(QDialog): # окно решения теста
                 self.show_current_question()
                 return
         
-        total_questions = len(self.questions_data)
-        correct_answers = 0
-        
-        for question_data in self.questions_data:
-            question_id = question_data['question_id']
-            selected_answers = self.answers.get(question_id, [])
-            
-            if question_data['is_single_choice']:
-                if len(selected_answers) == 1:
-                    selected_id = selected_answers[0]
-                    for answer in question_data['answers']:
-                        if answer[0] == selected_id and answer[2] == 1:
-                            correct_answers += 1
-                            break
-            else:
-                if selected_answers:
-                    correct_selected = 0
-                    incorrect_selected = 0
-                    
-                    for answer in question_data['answers']:
-                        answer_id = answer[0]
-                        is_correct = answer[2]
-                        
-                        if is_correct and answer_id in selected_answers:
-                            correct_selected += 1
-                        elif not is_correct and answer_id in selected_answers:
-                            incorrect_selected += 1
-                    
-                    if correct_selected == question_data['correct_count'] and incorrect_selected == 0:
-                        correct_answers += 1
-            
-        if total_questions > 0: # оценка
-            percentage = (correct_answers / total_questions) * 100
-            percentage = max(0.0, min(100.0, percentage))
-            
-            if percentage >= 90:
-                grade = 5
-            elif percentage >= 80:
-                grade = 4
-            elif percentage >= 50:
-                grade = 3
-            else:
-                grade = 2
+        total_score, max_possible_score = self.calculate_total_score()
+    
+        if max_possible_score > 0:
+            percentage = (total_score / max_possible_score) * 100
         else:
             percentage = 0
-            grade = 0
-
+        
+        percentage = max(0.0, min(100.0, percentage))
+        
+        if percentage >= 90:
+            grade = 5
+        elif percentage >= 75:
+            grade = 4
+        elif percentage >= 50:
+            grade = 3
+        else:
+            grade = 2
+        
         percentage = round(percentage, 2)
-        grade = round(grade, 2)
-        
-        if grade > 9.99:
-            grade = 9.99
-        
-        if percentage > 99.99:
-            percentage = 100
         
         # сохранение итогов
         try:
@@ -1679,11 +1686,10 @@ class TestExecutionWindow(QDialog): # окно решения теста
                 self,
                 "Тест завершен",
                 f"Результаты теста: {action}\n\n"
-                f"Правильных ответов: {correct_answers} из {total_questions}\n"
+                f"Правильных ответов: {total_score:.2f} из {max_possible_score}\n"
                 f"Процент выполнения: {percentage:.1f}%\n"
                 f"Оценка: {grade}"
             )
-            
             self.close()
             
         except Exception as e:

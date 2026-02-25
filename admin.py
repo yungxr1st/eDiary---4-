@@ -67,7 +67,7 @@ class MainMenuAdmin(QMainWindow):
 
         self.users_text = QLineEdit()
         self.users_text.setPlaceholderText("Начните вводить ФИО пользователя")
-        self.users_text.setMaxLength(93)
+        self.users_text.setMaxLength(92)
         self.users_text.setFixedSize(300, 30)
         self.users_text.setStyleSheet("""
             border-radius: 5px;
@@ -415,7 +415,12 @@ class MainMenuAdmin(QMainWindow):
         selected_row = self.users_table.currentRow()
         if selected_row >= 0:
             login = self.users_table.item(selected_row, 3).text()
-            user_name = f"{self.users_table.item(selected_row, 0).text()} {self.users_table.item(selected_row, 1).text()}"
+            user_name = (
+                f"{self.users_table.item(selected_row, 0).text()} "
+                f"{self.users_table.item(selected_row, 1).text()} "
+                f"{self.users_table.item(selected_row, 2).text()} "
+                f"({self.users_table.item(selected_row, 3).text()})"
+            )
             
             reply = QMessageBox.question(
                 self,
@@ -556,6 +561,8 @@ class AddEditUserDialog(QDialog):
         self.active_checkbox.setFont(QFont("Roboto", 10))
         self.active_checkbox.setChecked(True)
         self.active_checkbox.setStyleSheet("font-family: Roboto;")
+        if not self.is_edit_mode:
+            self.active_checkbox.setVisible(False)
         form_layout.addRow("", self.active_checkbox)
         
         layout.addLayout(form_layout)
