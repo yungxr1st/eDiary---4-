@@ -4,6 +4,7 @@ import pyodbc
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                 QPushButton, QLabel, QLineEdit)
 from PyQt5.QtCore import (Qt)
+from PyQt5.QtGui import QIcon
 from teachers import MainMenuTeacher
 from admin import MainMenuAdmin
 from students import MainMenuStudent
@@ -35,6 +36,7 @@ class LoginWindow(QMainWindow):
         self.setWindowTitle("Авторизация")
         self.setFixedSize(600, 400)
         self.setCentralWidget(central_widget)
+        self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setStyleSheet("background-color: #f0f0f0;")
 
         main_layout = QVBoxLayout()

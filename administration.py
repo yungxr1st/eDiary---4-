@@ -1,16 +1,10 @@
-import hashlib
-import sys
-import pyodbc
-import pandas as pd
-import datetime
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
-                             QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
-                             QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, 
-                             QRadioButton, QScrollArea)
-from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
-from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QPushButton, QLabel, QComboBox, 
+                             QLineEdit, QTabWidget,
+                             QDialog, QFormLayout, QMessageBox,
+                             QDateEdit, QTableWidget, QTableWidgetItem, QHeaderView)
+from PyQt5.QtGui import (QIcon, QColor, QFont)
+from PyQt5.QtCore import (Qt, QDate)
 
 
 class MainMenuAdministration(QMainWindow): # главное меню для администрации
@@ -25,6 +19,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.setWindowTitle("Главное меню")
         self.setFixedSize(900, 600)
         self.setCentralWidget(central_widget)
+        self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setStyleSheet("background-color: #f0f0f0;")
 
         main_layout = QVBoxLayout()
@@ -1278,6 +1273,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 from name_class n_c
                 inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
                 inner join subject s on s.id_subject = s_t.id_subject
+                where n_c.is_active = 1
                 order by n_c.num, n_c.letter
             """
             cursor.execute(query)
@@ -1689,6 +1685,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio
                 from users u
                 where u.id_role = 2
+                and u.is_active = 1
             """
             cursor.execute(query)
             teachers_data = cursor.fetchall()
@@ -1719,7 +1716,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     c.id_class
                 from users u
                 left join class c on c.id_user = u.id_user
-                left join name_class n_c on n_c.id_name_class = c.id_name_class
+                left join name_class n_c on n_c.id_name_class = c.id_name_class and n_c.is_active = 1
                 where u.id_role = 1
             """)
             cursor.execute(query)
@@ -1797,6 +1794,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             from users u
             where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
             and id_role = 1
+            and is_active = 1
         """
         fio_cursor.execute(fio_query, self.groups_fio.text())
         fio = fio_cursor.fetchone()
@@ -1889,6 +1887,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             select id_user
             from users u
             where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            and u.is_active = 1
         """
         fio_cursor.execute(fio_query, self.groups_fio.text())
         fio = fio_cursor.fetchone()
@@ -1983,8 +1982,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     isnull(u.surname + ' ' + u.[name] + ' ' + u.patronymic, 'Не назначен') as fio
                 from subj_teachers s_t
                 left join users u on u.id_user = s_t.id_user
-                left join subject s on s.id_subject = s_t.id_subject
-                right join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                left join subject s on s.id_subject = s_t.id_subject and s.is_active = 1
+                right join name_class n_c on n_c.id_name_class = s_t.id_name_class and n_c.is_active = 1
             """) # переписать запрос
             cursor.execute(query)
             subject_data = cursor.fetchall()
@@ -2262,7 +2261,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             if 'cursor' in locals():
                 self.conn.rollback()
 
-    def load_groups_for_subjects(self): # выбор элемента для загрузки групп
+    def load_groups_for_subjects(self): # загрузка групп
         try:
             cursor = self.conn.cursor()
             
@@ -2271,6 +2270,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     n_c.id_name_class,
                     convert(varchar, n_c.num) + n_c.letter
                 from name_class n_c
+                where n_c.is_active = 1
                 order by n_c.num, n_c.letter
             """
             cursor.execute(query)
@@ -2305,6 +2305,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     id_subject,
                     subject_name
                 from [subject]
+                where is_active = 1
                 order by subject_name
             """
             cursor.execute(query)
@@ -2821,7 +2822,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 where sch.id_cabinet = ?
                 and sch.day_of_week = ?
                 and sch.lesson_num = ?
-                and sch.id_schedule != ?  -- исключаем текущую запись при обновлении
+                and sch.id_schedule != ?
             """
             current_schedule_id = self.selected_schedule_id if hasattr(self, 'selected_schedule_id') and self.selected_schedule_id else 0
             cursor.execute(check_cabinet_query, (
@@ -3078,6 +3079,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     inner join subj_teachers s_t on s_t.id_user = u.id_user
                     inner join subject s on s.id_subject = s_t.id_subject
                     where s.subject_name = ?
+                    and u.is_active = 1
                 """
                 cursor.execute(query, self.schedule_subject.text())
                 teachers_data = cursor.fetchall()
@@ -3105,6 +3107,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     id_cabinet,
                     num
                 from cabinet
+                where is_active = 1
                 order by num
             """
             cursor.execute(query)
@@ -3158,6 +3161,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.surname_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(surname_label, self.surname_edit)
         
         # имя
@@ -3173,6 +3177,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.name_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(name_label, self.name_edit)
         
         # отчество
@@ -3188,6 +3193,7 @@ class EditUserDialog(QDialog): # окно редактирования поль�
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.patronymic_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(patronymic_label, self.patronymic_edit)
         
         # роль

@@ -1,16 +1,9 @@
-import hashlib
-import sys
-import pyodbc
-import pandas as pd
-import datetime
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
-                             QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
-                             QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, 
-                             QRadioButton, QScrollArea)
-from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
-from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+                             QPushButton, QLabel, QComboBox, QLineEdit, 
+                             QListWidget, QDialog, QMessageBox, QListWidgetItem, QTextEdit,
+                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
+from PyQt5.QtGui import (QIcon, QColor, QFont)
+from PyQt5.QtCore import (Qt, QDate)
 
 
 class MainMenuTeacher(QMainWindow):
@@ -26,6 +19,7 @@ class MainMenuTeacher(QMainWindow):
         self.setWindowTitle("Главное меню")
         self.setFixedSize(900, 600)
         self.setCentralWidget(central_widget)
+        self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setStyleSheet("background-color: #f0f0f0;")
 
         main_layout = QVBoxLayout()
@@ -874,6 +868,7 @@ class MainMenuTeacher(QMainWindow):
                 inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
                 inner join users u on u.id_user = s_t.id_user
                 where u.id_user = ?
+                and n_c.is_active = 1
                 order by n_c.num, n_c.letter
             """
             cursor.execute(query, self.id_user)
@@ -1207,6 +1202,7 @@ class MainMenuTeacher(QMainWindow):
                 inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
                 inner join users u on u.id_user = s_t.id_user
                 where u.id_user = ?
+                and n_c.is_active = 1
                 order by n_c.num, n_c.letter
             """
             # cursor.execute(query, (self.id_user,))
@@ -2959,6 +2955,7 @@ class TestConstructor(QDialog):
                 inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
                 inner join users u on u.id_user = s_t.id_user
                 where u.id_user = ?
+                and n_c.is_active = 1
                 order by n_c.num, n_c.letter
             """)
             cursor.execute(query, self.id_user)

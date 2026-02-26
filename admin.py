@@ -1,16 +1,10 @@
 import hashlib
-import sys
-import pyodbc
-import pandas as pd
-import datetime
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
-                             QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
-                             QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, 
-                             QRadioButton, QScrollArea)
-from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
-from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QPushButton, QLabel, QComboBox, 
+                             QLineEdit, QDialog, QFormLayout, QMessageBox,
+                             QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
+from PyQt5.QtGui import (QIcon, QColor, QFont)
+from PyQt5.QtCore import (Qt)
 import re
 
 
@@ -26,6 +20,7 @@ class MainMenuAdmin(QMainWindow):
         self.setWindowTitle("Главное меню")
         self.setFixedSize(900, 600)
         self.setCentralWidget(central_widget)
+        self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setStyleSheet("background-color: #f0f0f0;")
 
         main_layout = QVBoxLayout()
@@ -481,6 +476,7 @@ class AddEditUserDialog(QDialog):
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.surname_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(surname_label, self.surname_edit)
         
         # имя
@@ -496,6 +492,7 @@ class AddEditUserDialog(QDialog):
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.name_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(name_label, self.name_edit)
         
         # отчество
@@ -511,6 +508,7 @@ class AddEditUserDialog(QDialog):
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.patronymic_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(patronymic_label, self.patronymic_edit)
         
         # логин
@@ -526,6 +524,7 @@ class AddEditUserDialog(QDialog):
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.login_edit.setPlaceholderText("Обязательное поле")
         form_layout.addRow(login_label, self.login_edit)
         
         # пароль
@@ -542,8 +541,11 @@ class AddEditUserDialog(QDialog):
             border: 2px solid #3498db;
             padding: 5px;
         """)
+        self.password_edit.setPlaceholderText("Обязательное поле")
+        if self.is_edit_mode:
+            self.password_edit.setPlaceholderText("Необязательное поле")
         form_layout.addRow(password_label, self.password_edit)
-        
+
         # роль
         role_label = QLabel("Роль:")
         role_label.setFont(QFont("Roboto", 10))
@@ -736,6 +738,7 @@ class AddEditUserDialog(QDialog):
             count = cursor.fetchone()[0]
             if count > 0:
                 QMessageBox.warning(self, "Предупреждение", "Пользователь с таким логином уже существует")
+                return
             cursor.close()
         except:
             pass
@@ -1220,8 +1223,12 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select id_name_class, num, letter 
+                select 
+                    id_name_class, 
+                    num, 
+                    letter 
                 from name_class 
+                where is_active = 1
                 order by num, letter
             """)
             groups_data = cursor.fetchall()
@@ -1256,8 +1263,11 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select id_subject, subject_name 
-                from subject 
+                select 
+                    id_subject, 
+                    subject_name 
+                from [subject] 
+                where is_active = 1
                 order by subject_name
             """)
             subjects_data = cursor.fetchall()
@@ -1284,8 +1294,11 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select id_cabinet, num
+                select 
+                    id_cabinet, 
+                    num
                 from cabinet 
+                where is_active = 1
                 order by num
             """)
             cabinets_data = cursor.fetchall()
@@ -1318,7 +1331,7 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
 
     def add_group(self): # добавление группы
         num_text = self.groupNum_line.text().strip()
-        letter_text = self.groupLet_line.text().strip().upper()
+        letter_text = self.groupLet_line.text().strip()
         
         if not num_text:
             QMessageBox.warning(self, "Предупреждение", "Введите номер группы")
@@ -1343,31 +1356,54 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select count(*) from name_class 
-                where num = ? and letter = ?
+                select 
+                    id_name_class 
+                from name_class 
+                where (num = ? and letter = ?) 
+                and is_active = 0
             """, (num, letter))
+            exists = cursor.fetchone()
             
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(self, "Предупреждение", "Такая группа уже существует")
-                cursor.close()
-                return
-            
-            # добавление группы
-            cursor.execute("""
-                insert into name_class (num, letter) 
-                values (?, ?)
-            """, (num, letter))
-            
-            self.conn.commit()
+            if exists:
+                cursor.execute("""
+                    update name_class 
+                    set is_active = 1 
+                    where num = ? 
+                    and letter = ?
+                """, (num, letter))
+                self.conn.commit()
+
+                self.groupNum_line.clear()
+                self.groupLet_line.clear()
+                self.load_groups()
+                QMessageBox.information(self, "Успех", "Группа успешно добавлена")
+            else:
+                cursor.execute("""
+                    select count(*) 
+                    from name_class 
+                    where (num = ? and letter = ?) 
+                    and is_active = 1
+                """, (num, letter))
+                exists_active = cursor.fetchone()[0]
+
+                if (exists_active > 0):
+                    QMessageBox.warning(self, "Предупреждение", "Такая группа уже существует")
+                    self.groupNum_line.clear()
+                    self.groupLet_line.clear()
+                else:
+                    # добавление группы
+                    cursor.execute("""
+                        insert into name_class(num, letter, is_active) 
+                        values (?, ?, 1)
+                    """, (num, letter))
+                    self.conn.commit()
+
+                    self.groupNum_line.clear()
+                    self.groupLet_line.clear()
+                    self.load_groups()
+                    QMessageBox.information(self, "Успех", "Группа успешно добавлена")
+
             cursor.close()
-            
-            QMessageBox.information(self, "Успех", "Группа успешно добавлена")
-            
-            # очистка таблицы
-            self.groupNum_line.clear()
-            self.groupLet_line.clear()
-            self.load_groups()
-            
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось добавить группу: {str(e)}")
 
@@ -1391,30 +1427,49 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select count(*) from subject 
-                where subject_name = ?
-            """, (subject_name,))
+                select 
+                    id_subject 
+                from [subject] 
+                where subject_name = ? 
+                and is_active = 0
+            """, (subject_name))
+            exists = cursor.fetchone()
+
+            if exists:
+                cursor.execute("""
+                    update [subject] 
+                    set is_active = 1 
+                    where subject_name = ?
+                """, (subject_name))
+                self.conn.commit()
+
+                self.subject_line.clear()
+                self.load_subjects()
+                QMessageBox.information(self, "Успех", "Предмет успешно добавлен")
+            else:
+                cursor.execute("""
+                    select count(*) 
+                    from [subject] 
+                    where subject_name = ? 
+                    and is_active = 1
+                """, (subject_name))
+                exists_active = cursor.fetchone()[0]
+
+                if exists_active > 0:
+                    QMessageBox.warning(self, "Предупреждение", "Предмет с такми названием уже существует")
+                    self.subject_line.clear()
+                else:
+                # добавление предмета
+                    cursor.execute("""
+                        insert into [subject](subject_name, is_active) 
+                        values (?, 1)
+                    """, (subject_name))
+                    self.conn.commit()
+                    self.subject_line.clear()
+                    self.load_subjects()
+                    QMessageBox.information(self, "Успех", "Предмет успешно добавлен")
             
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(self, "Предупреждение", "Такой предмет уже существует")
-                cursor.close()
-                return
-            
-            # добавление предмета
-            cursor.execute("""
-                insert into subject (subject_name) 
-                values (?)
-            """, (subject_name,))
-            
-            self.conn.commit()
             cursor.close()
-            
-            QMessageBox.information(self, "Успех", "Предмет успешно добавлен")
-            
-            # очистка таблицы
-            self.subject_line.clear()
-            self.load_subjects()
-            
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось добавить предмет: {str(e)}")
 
@@ -1437,30 +1492,46 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                select count(*) from cabinet 
-                where num = ?
+                select id_cabinet 
+                from cabinet 
+                where num = ? 
+                and is_active = 0
             """, (cabinet_name,))
+            exists = cursor.fetchone()
             
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(self, "Предупреждение", "Такой кабинет уже существует")
-                cursor.close()
-                return
-            
-            # добавление кабинета
-            cursor.execute("""
-                insert into cabinet (num) 
-                values (?)
-            """, (cabinet_name,))
-            
-            self.conn.commit()
+            if exists:
+                cursor.execute("""
+                    update cabinet 
+                    set is_active = 1 
+                    where num = ?
+                """, (cabinet_name))
+                self.conn.commit()
+                self.cabinet_line.clear()
+                self.load_cabinets()
+                QMessageBox.information(self, "Успех", "Кабинет успешно добавлен")
+            else:
+                cursor.execute("""
+                    select count(*) from cabinet 
+                    where num = ? and is_active = 1
+                """, (cabinet_name,))
+                exists_active = cursor.fetchone()[0]
+
+                if (exists_active > 0):
+                    QMessageBox.warning(self, "Предупреждение", "Кабинет с таким номером уже существует")
+                    self.cabinet_line.clear()
+                else:
+                    # добавление кабинета
+                    cursor.execute("""
+                        insert into cabinet (num, is_active) 
+                        values (?, 1)
+                    """, (cabinet_name,))
+                    self.conn.commit()
+
+                    self.cabinet_line.clear()
+                    self.load_cabinets()
+                    QMessageBox.information(self, "Успех", "Кабинет успешно добавлен")
+
             cursor.close()
-            
-            QMessageBox.information(self, "Успех", "Кабинет успешно добавлен")
-            
-            # очистка таблицы
-            self.cabinet_line.clear()
-            self.load_cabinets()
-            
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось добавить кабинет: {str(e)}")
 
@@ -1504,98 +1575,12 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         
         try:
             cursor = self.conn.cursor()
-            
-            # проверка на использование группы в других таблицах
-            cursor.execute("""
-                select count(*) from class 
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как она используется в других таблицах"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from schedule
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как она используется в расписании"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from subj_teachers
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как к ней прикреплены преподаватели"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from exercise
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как для нее есть задания"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from lesson
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как для нее есть проведенные уроки"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from test
-                where id_name_class = ?
-            """, (id_name_class,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить группу, так как для нее есть тесты"
-                )
-                cursor.close()
-                return
-            
             # удаление группы
             cursor.execute("""
-                delete from name_class 
+                update name_class 
+                set is_active = 0 
                 where id_name_class = ?
             """, (id_name_class,))
-            
             self.conn.commit()
             cursor.close()
             
@@ -1636,83 +1621,12 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         try:
             cursor = self.conn.cursor()
             
-            # проверка на использование предмета в других таблицах
-            cursor.execute("""
-                select count(*) from schedule 
-                where id_subject = ?
-            """, (id_subject,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить предмет, так как он используется в других таблицах"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from subj_teachers
-                where id_subject = ?
-            """, (id_subject,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить предмет, так как к нему прикреплены преподаватели"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from subj_students
-                where id_subject = ?
-            """, (id_subject,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить предмет, так как по нему есть оценки у учеников"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from exercise
-                where id_subject = ?
-            """, (id_subject,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить предмет, так как по нему есть задания"
-                )
-                cursor.close()
-                return
-            
-            cursor.execute("""
-                select count(*) from lesson
-                where id_subject = ?
-            """, (id_subject,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить предмет, так как по нему есть проведенные уроки"
-                )
-                cursor.close()
-                return
-            
             # удаление предмета
             cursor.execute("""
-                delete from subject 
+                update subject 
+                set is_active = 0 
                 where id_subject = ?
             """, (id_subject,))
-            
             self.conn.commit()
             cursor.close()
             
@@ -1752,27 +1666,12 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
         
         try:
             cursor = self.conn.cursor()
-            
-            cursor.execute("""
-                select count(*) from schedule
-                where id_cabinet = ?
-            """, (id_cabinet,))
-            
-            if cursor.fetchone()[0] > 0:
-                QMessageBox.warning(
-                    self,
-                    "Ошибка",
-                    "Невозможно удалить кабинет, так как он используется в расписании"
-                )
-                cursor.close()
-                return
-            
             # удаление кабинета
             cursor.execute("""
-                delete from cabinet 
+                update cabinet 
+                set is_active = 0 
                 where id_cabinet = ?
             """, (id_cabinet,))
-            
             self.conn.commit()
             cursor.close()
             
@@ -1787,6 +1686,6 @@ class GroupSubjectDialog(QDialog): # окно группы и предметы
             if 'cursor' in locals():
                 self.conn.rollback()
 
-    def update_buttons_state(self): # обновление кнопок
+    def update_buttons_state(self):
         has_selection = self.group_subject_table.currentRow() >= 0
         self.delete_button.setEnabled(has_selection)
