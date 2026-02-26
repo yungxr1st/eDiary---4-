@@ -1310,6 +1310,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         self.load_groups()
         self.load_subjects()
+        self.load_teachers_for_groups()
         self.load_groups_for_groups()
         self.load_groups_for_subjects()
         self.load_subjects_into_combo()
@@ -1342,7 +1343,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.tab_groups.setLayout(groups_layout)
 
         self.groups_table = QTableWidget()
-        self.groups_table.setFixedSize(300, 400)
+        self.groups_table.setFixedSize(350, 400)
         self.groups_table.setColumnCount(2)
         self.groups_table.setHorizontalHeaderLabels(["ФИО ученика", "Группа"])
         self.groups_table.horizontalHeader().setStretchLastSection(True)
@@ -1496,7 +1497,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.tab_subjects.setLayout(subjects_layout)
 
         self.subjects_table = QTableWidget()
-        self.subjects_table.setFixedSize(300, 400)
+        self.subjects_table.setFixedSize(350, 400)
         self.subjects_table.setColumnCount(3)
         self.subjects_table.setHorizontalHeaderLabels(["Группа", "Предмет", "ФИО преподавателя"])
         self.subjects_table.horizontalHeader().setStretchLastSection(True)
@@ -1549,9 +1550,9 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         subjects_layout.addStretch(1)
 
         subjects_right_layout = QVBoxLayout()
-        subjects_layout.addSpacing(21)
+        subjects_layout.addSpacing(10)
         subjects_layout.addLayout(subjects_right_layout)
-        subjects_layout.addSpacing(20)
+        subjects_layout.addSpacing(10)
 
         subjects_group_label = QLabel("Группа:")
         subjects_group_label.setStyleSheet("font-family: Roboto; color: #333;")
@@ -1593,19 +1594,33 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         teacher_fio_label = QLabel("ФИО преподавателя:")
         teacher_fio_label.setStyleSheet("font-family: Roboto; color: #333;")
         subjects_right_layout.addWidget(teacher_fio_label, alignment=Qt.AlignLeft)
-        
-        self.subject_teacher_fio = QLineEdit()
-        self.subject_teacher_fio.setMaxLength(92)
-        self.subject_teacher_fio.setFixedSize(230, 35)
+
+        self.subject_teacher_fio = QComboBox()
+        self.subject_teacher_fio.addItems(["Выберите преподавателя"])
+        self.subject_teacher_fio.setFixedSize(200, 30)
         self.subject_teacher_fio.setStyleSheet("""
             border-radius: 5px;
-            border: 2px solid #3498db;
+            border: 1px solid #ccc;
+            color: #333;
             padding: 5px;
-            font-family: roboto;
-            font-size: 14px;
+            font-family: Roboto;
         """)
+        # self.subject_teacher_fio.currentIndexChanged.connect(self.print)
         subjects_right_layout.addWidget(self.subject_teacher_fio, alignment=Qt.AlignLeft)
         subjects_right_layout.addStretch(1)
+        
+        # self.subject_teacher_fio = QLineEdit()
+        # self.subject_teacher_fio.setMaxLength(92)
+        # self.subject_teacher_fio.setFixedSize(230, 35)
+        # self.subject_teacher_fio.setStyleSheet("""
+        #     border-radius: 5px;
+        #     border: 2px solid #3498db;
+        #     padding: 5px;
+        #     font-family: roboto;
+        #     font-size: 14px;
+        # """)
+        # subjects_right_layout.addWidget(self.subject_teacher_fio, alignment=Qt.AlignLeft)
+        # subjects_right_layout.addStretch(1)
 
         subjects_button_layout = QHBoxLayout()
         subjects_right_layout.addLayout(subjects_button_layout)
@@ -1661,6 +1676,36 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.del_from_subject.setEnabled(False)
         subjects_button_layout.addWidget(self.del_from_subject)
         subjects_right_layout.addStretch(1)
+
+    def load_teachers_for_groups(self):
+        self.subject_teacher_fio.clear()
+        self.subject_teacher_fio.addItems(["Выберите преподавателя"])
+        try:
+            cursor = self.conn.cursor()
+            
+            query = """
+                select
+                    u.id_user,
+                    u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio
+                from users u
+                where u.id_role = 2
+            """
+            cursor.execute(query)
+            teachers_data = cursor.fetchall()
+            
+            if teachers_data:
+                for group in teachers_data:
+                    id_user = group[0]
+                    fio = group[1]
+                    self.subject_teacher_fio.addItem(fio, id_user)
+            else:
+                self.subject_teacher_fio.setText("Нет преподавателей")
+                
+            cursor.close()
+            
+        except Exception as e:
+            self.subject_teacher_fio.clear()
+            self.subject_teacher_fio.setText(f"Ошибка загрузки: {str(e)}")
 
     def load_groups(self):
         try:
@@ -2014,23 +2059,27 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     and 'id_user' in item_data
                     and 'fio' in item_data):
                 self.selected_subjects_user = item_data['id_user']
-                if item_data['fio'] == "Не назначен":
-                    self.subject_teacher_fio.clear()
-                    self.subject_teacher_fio.setPlaceholderText(item_data['fio'])
-                else:
-                    self.subject_teacher_fio.clear()
-                    self.subject_teacher_fio.setText(item_data['fio'])
+                # if item_data['fio'] == "Не назначен":
+                #     self.subject_teacher_fio.clear()
+                #     self.subject_teacher_fio.setPlaceholderText(item_data['fio'])
+                # else:
+                #     self.subject_teacher_fio.clear()
+                #     self.subject_teacher_fio.setText(item_data['fio'])
                 # self.groups_group_combo.setCurrentIndex(item_data['id_group'])
                 self.add_to_subject.setEnabled(True)
                 self.del_from_subject.setEnabled(True)
             else:
                 self.selected_subjects_user = None
-                self.subject_teacher_fio.setText = None
+                # self.subject_teacher_fio.setText = None
+                self.subject_teacher_fio.clear()
+                self.subject_teacher_fio.addItems(["Выберите преподавателя"])
                 self.add_to_subject.setEnabled(False)
                 self.del_from_subject.setEnabled(False)
         else:
             self.selected_subjects_user = None
-            self.subject_teacher_fio.setText = None
+            # self.subject_teacher_fio.setText = None
+            self.subject_teacher_fio.clear()
+            self.subject_teacher_fio.addItems(["Выберите преподавателя"])
             self.add_to_subject.setEnabled(False)
             self.del_from_subject.setEnabled(False)
 
@@ -2043,23 +2092,23 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             QMessageBox.warning(self, "Ошибка", "Выберите предмет")
             return
             
-        if not self.subject_teacher_fio:
-            QMessageBox.warning(self, "Ошибка", "Укажите ФИО преподавателя")
+        if self.subject_teacher_fio.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите преподавателя")
             return
         
         fio_cursor = self.conn.cursor()
         fio_query = """
             select id_user
             from users u
-            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            where u.id_user = ?
             and id_role = 2
         """
-        fio_cursor.execute(fio_query, self.subject_teacher_fio.text())
+        fio_cursor.execute(fio_query, self.subject_teacher_fio.currentData())
         fio = fio_cursor.fetchone()
         fio_cursor.close()
 
         if not fio:
-            QMessageBox.warning(self, "Ошибка", "Укажите ФИО существующего преподавателя")
+            QMessageBox.warning(self, "Ошибка", "Выберите существующего преподавателя")
             return
         
         subject_group_cursor = self.conn.cursor()
@@ -2071,12 +2120,12 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
             inner join users u on u.id_user = s_t.id_user
             where s_t.id_subject = ? 
-            and u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            and u.id_user = ?
             and s_t.id_name_class = ?
         """
         subject_group_cursor.execute(group_query, (
             self.subject_combo.currentData(),
-            self.subject_teacher_fio.text(),
+            self.subject_teacher_fio.currentData(),
             self.subjects_group_combo.currentData()
         ))
         subject_group = subject_group_cursor.fetchone()
@@ -2093,13 +2142,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 declare @id_user int;
                 select @id_user = id_user
                 from users u
-                where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+                where u.id_user = ?
                 and u.id_role = 2;
                 insert into subj_teachers(id_subject, id_user, id_name_class)
                 values(?, @id_user, ?)
             """
             cursor.execute(query, (
-                self.subject_teacher_fio.text(),
+                self.subject_teacher_fio.currentData(),
                 self.subject_combo.currentData(),
                 self.subjects_group_combo.currentData()
             ))
@@ -2125,18 +2174,18 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             QMessageBox.warning(self, "Ошибка", "Выберите предмет")
             return
             
-        if not self.subject_teacher_fio:
-            QMessageBox.warning(self, "Ошибка", "Укажите ФИО преподавателя")
+        if self.subject_teacher_fio.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите преподавателя")
             return
         
         fio_cursor = self.conn.cursor()
         fio_query = """
             select id_user
             from users u
-            where u.surname + ' ' + u.[name] + ' ' + u.patronymic = ?
+            where u.id_user = ?
             and id_role = 2
         """
-        fio_cursor.execute(fio_query, self.subject_teacher_fio.text())
+        fio_cursor.execute(fio_query, self.subject_teacher_fio.currentData())
         fio = fio_cursor.fetchone()
         fio_cursor.close()
 
@@ -2170,7 +2219,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         reply = QMessageBox.question(
             self,
             "Подтверждение",
-            f"Вы уверены, что хотите открепить {self.subject_teacher_fio.text()} "
+            f"Вы уверены, что хотите открепить {self.subject_teacher_fio.currentText()} "
             f"от группы ({self.subjects_group_combo.currentText()}, "
             f"{self.subject_combo.currentText()})?",
             QMessageBox.Yes | QMessageBox.No,

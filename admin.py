@@ -455,7 +455,7 @@ class AddEditUserDialog(QDialog):
         self.is_edit_mode = login is not None or user_id is not None
 
         self.setWindowTitle("Редактирование пользователя" if self.is_edit_mode else "Добавление пользователя")
-        self.setFixedSize(350, 400)
+        self.setFixedSize(380, 400)
         self.setModal(True)
         self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         
@@ -468,6 +468,9 @@ class AddEditUserDialog(QDialog):
         # фамилия
         surname_label = QLabel("Фамилия:")
         surname_label.setFont(QFont("Roboto", 10))
+        surname_label.setStyleSheet("""
+            margin-right: 22px;
+        """)
 
         self.surname_edit = QLineEdit()
         self.surname_edit.setFixedSize(250, 35)

@@ -2111,11 +2111,9 @@ class MainMenuTeacher(QMainWindow):
                 from test t
                 inner join test_name t_n on t_n.id_name = t.id_name
                 inner join name_class n_c on n_c.id_name_class = t.id_name_class
-                inner join class c on c.id_name_class = n_c.id_name_class
-                inner join users u on u.id_user = c.id_user
-                inner join subj_students s_s on s_s.id_user = u.id_user
                 inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
-                inner join [subject] s on s.id_subject = s_t.id_subject
+                inner join subject s on s.id_subject = s_t.id_subject
+                inner join users u on u.id_user = s_t.id_user
                 where s_t.id_user = ? and t.id_name_class = ?
                 order by id_test desc
             """
@@ -2421,22 +2419,21 @@ class MainMenuTeacher(QMainWindow):
         self.close()
 
 
-class TestConstructor(QMainWindow):
+class TestConstructor(QDialog):
     def __init__(self, id_user = None, fio = None, conn = None):
         super().__init__()
         self.id_user = id_user
         self.fio = fio
         self.conn = conn
-
-        central_widget = QWidget()
+        self.setModal(True)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
 
         self.setWindowTitle("Конструктор тестов")
         self.setFixedSize(900, 600)
-        self.setCentralWidget(central_widget)
         self.setStyleSheet("background-color: #f0f0f0;")
 
         main_layout = QVBoxLayout()
-        central_widget.setLayout(main_layout)
+        self.setLayout(main_layout)
 
         title_label = QLabel("Конструктор тестов")
         title_label.setAlignment(Qt.AlignCenter)
@@ -3068,7 +3065,7 @@ class TestConstructor(QMainWindow):
 
         has_correct_answer = any(answer['is_correct'] for answer in answers_data)
         if not has_correct_answer:
-            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа")
+            QMessageBox.warning(self, "Предупреждение", "Укажите хотя бы один верный вариант ответа")
             return
         
         if self.is_question_in_test_list(question_text, answers_data):
@@ -3138,7 +3135,7 @@ class QuestionAnswerFromDB(QDialog):
         self.selected_question_id = None
         self.conn = conn
         self.setWindowTitle("Банк вопросов")
-        self.setFixedSize(500, 400)
+        self.setFixedSize(550, 400)
         self.setModal(True)
         self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
 
@@ -3147,7 +3144,7 @@ class QuestionAnswerFromDB(QDialog):
         
         # таблица для вывода вопросов и ответов
         self.questions_table = QTableWidget()
-        self.questions_table.setFixedSize(480, 320)
+        self.questions_table.setFixedSize(500, 320)
         self.questions_table.setColumnCount(2)
         self.questions_table.setHorizontalHeaderLabels(["Вопрос", "Ответы"])
         self.questions_table.horizontalHeader().setStretchLastSection(True)

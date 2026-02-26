@@ -1,16 +1,9 @@
 import hashlib
 import sys
 import pyodbc
-import pandas as pd
-import datetime
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QStyleFactory, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QSpinBox, QLabel, QGridLayout, QComboBox, 
-                             QLineEdit, QTabWidget, QGroupBox, QListWidget, QDialogButtonBox, 
-                             QDialog, QFormLayout, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, 
-                             QRadioButton, QScrollArea)
-from PyQt5.QtGui import (QPixmap, QIcon, QPainter, QColor, QPen, QFont, QPalette)
-from PyQt5.QtCore import (Qt, QSize, QTimer, pyqtSignal, QDate)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                                QPushButton, QLabel, QLineEdit)
+from PyQt5.QtCore import (Qt)
 from teachers import MainMenuTeacher
 from admin import MainMenuAdmin
 from students import MainMenuStudent
@@ -158,7 +151,8 @@ class LoginWindow(QMainWindow):
             hashed_pswd = self.hash_password(pswd)
 
             query = ("""
-                select u.id_user, u.surname, left(u.name, 1) + '.', left(u.patronymic, 1) + '.', u.id_role
+                select u.id_user, u.surname, left(u.name, 1) + '.', left(u.patronymic, 1) + '.',
+                    u.id_role, r.title
                 from users u 
                 inner join role r ON u.id_role = r.id_role 
                 where u.login = ? and u.password = ? and u.is_active = 1
@@ -173,8 +167,9 @@ class LoginWindow(QMainWindow):
                 name = user_data[2]
                 patronymic = user_data[3]
                 id_role = user_data[4]
+                role = user_data[5]
                 
-                fio = f"{surname} {name} {patronymic}".strip()
+                fio = f"{surname} {name} {patronymic} ({role})".strip()
                 
                 if id_role == 1: # ученик
                     self.open_main_menu_for_student(id_user, fio)
