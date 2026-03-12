@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QLabel, QComboBox, QLineEdit, 
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
+                             QLabel, QComboBox, QLineEdit, QSpinBox, QMenu, QAction,
                              QListWidget, QDialog, QMessageBox, QListWidgetItem, QTextEdit,
                              QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt5.QtGui import (QIcon, QColor, QFont)
@@ -1952,8 +1952,9 @@ class MainMenuTeacher(QMainWindow):
         # для таблицы
         self.tests_table = QTableWidget()
         self.tests_table.setFixedSize(600, 355)
-        self.tests_table.setColumnCount(5)
-        self.tests_table.setHorizontalHeaderLabels(["Предмет", "Группа", "Тест", "Дата загрузки", "Срок сдачи"])
+        self.tests_table.setColumnCount(6)
+        self.tests_table.setHorizontalHeaderLabels(["Предмет", "Группа", "Тест", 
+            "Попытки", "Дата загрузки", "Срок сдачи"])
         self.tests_table.horizontalHeader().setStretchLastSection(True)
         self.tests_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.tests_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -2001,8 +2002,9 @@ class MainMenuTeacher(QMainWindow):
         header.resizeSection(1, 80)
         header.setSectionResizeMode(2, QHeaderView.Fixed)  # тест
         header.resizeSection(2, 140)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # дата загрузки
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # срок сдачи
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # попытки
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # дата загрузки
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # срок сдачи
         tests_layout.addWidget(self.tests_table)
         tests_layout.addSpacing(18)
         
@@ -2102,6 +2104,7 @@ class MainMenuTeacher(QMainWindow):
                     s.subject_name,
                     convert(varchar, n_c.num) + n_c.letter as group_name,
                     t_n.[name],
+                    t.num_of_attempts,
                     t.upload,
                     t.deadline
                 from test t
@@ -2124,11 +2127,16 @@ class MainMenuTeacher(QMainWindow):
                 subject_name = record[1]
                 group_name = record[2]
                 test_name = record[3]
-                upload_date = record[4]
-                deadline_date = record[5]
+                attempts = record[4]
+                upload_date = record[5]
+                deadline_date = record[6]
                 
                 formatted_upload = upload_date.strftime("%d.%m.%Y")
                 formatted_deadline = deadline_date.strftime("%d.%m.%Y")
+
+                attempts = str(attempts)
+                if attempts == None:
+                    attempts = "0"
                 
                 # предмет
                 subject_item = QTableWidgetItem(subject_name)
@@ -2151,19 +2159,26 @@ class MainMenuTeacher(QMainWindow):
                 test_item.setTextAlignment(Qt.AlignCenter)
                 self.tests_table.setItem(row, 2, test_item)
                 
+                # попытки
+                attempts_item = QTableWidgetItem(attempts)
+                attempts_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
+                attempts_item.setFlags(attempts_item.flags() & ~Qt.ItemIsEditable)
+                attempts_item.setTextAlignment(Qt.AlignCenter)
+                self.tests_table.setItem(row, 3, attempts_item)
+                
                 # дата загрузки
                 upload_item = QTableWidgetItem(formatted_upload)
                 upload_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
                 upload_item.setFlags(upload_item.flags() & ~Qt.ItemIsEditable)
                 upload_item.setTextAlignment(Qt.AlignCenter)
-                self.tests_table.setItem(row, 3, upload_item)
+                self.tests_table.setItem(row, 4, upload_item)
                 
                 # срок сдачи
                 deadline_item = QTableWidgetItem(formatted_deadline)
                 deadline_item.setData(Qt.UserRole, {'test_id': test_id, 'test_name': test_name})
                 deadline_item.setFlags(deadline_item.flags() & ~Qt.ItemIsEditable)
                 deadline_item.setTextAlignment(Qt.AlignCenter)
-                self.tests_table.setItem(row, 4, deadline_item)
+                self.tests_table.setItem(row, 5, deadline_item)
             
             cursor.close()
             
@@ -2217,8 +2232,8 @@ class MainMenuTeacher(QMainWindow):
             dialog.setLayout(layout)
             
             grades_table = QTableWidget()
-            grades_table.setColumnCount(3)
-            grades_table.setHorizontalHeaderLabels(["Ученик", "Оценка", "% выполнения"])
+            grades_table.setColumnCount(4)
+            grades_table.setHorizontalHeaderLabels(["Ученик", "Оценка", "% выполнения", "Попытка"])
             grades_table.horizontalHeader().setStretchLastSection(True)
             grades_table.setSelectionBehavior(QTableWidget.SelectRows)
             grades_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -2258,6 +2273,12 @@ class MainMenuTeacher(QMainWindow):
                     border: none;
                 }
             """)
+            header = grades_table.horizontalHeader()
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # фио ученика
+            header.setSectionResizeMode(1, QHeaderView.ResizeToContents) # оценка
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # процент выполнения
+            header.setSectionResizeMode(3, QHeaderView.Fixed) # номер попытки
+            header.resizeSection(3, 60)
 
             cursor = self.conn.cursor()
             
@@ -2265,7 +2286,8 @@ class MainMenuTeacher(QMainWindow):
                 select
                     u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
                     s_t.grade,
-                    s_t.grade_percent
+                    s_t.grade_percent,
+                    s_t.attempt_num
                 from solved_tests s_t
                 inner join users u on u.id_user = s_t.id_user
                 where s_t.id_test = ?
@@ -2282,6 +2304,7 @@ class MainMenuTeacher(QMainWindow):
                 fio = record[0]
                 grade = record[1] if record[1] is not None else "Не оценено"
                 grade_percent = record[2] if record[2] is not None else "0"
+                student_attempt = record[3] if record[3] is not None else "0"
                 
                 # фио ученика
                 fio_item = QTableWidgetItem(fio)
@@ -2308,10 +2331,15 @@ class MainMenuTeacher(QMainWindow):
                 percent_item = QTableWidgetItem(f"{grade_percent}%")
                 percent_item.setFlags(percent_item.flags() & ~Qt.ItemIsEditable)
                 percent_item.setTextAlignment(Qt.AlignCenter)
-                
                 grades_table.setItem(row, 2, percent_item)
+                
+                # номер попытки
+                student_attempt_item = QTableWidgetItem(f"{student_attempt}")
+                student_attempt_item.setFlags(student_attempt_item.flags() & ~Qt.ItemIsEditable)
+                student_attempt_item.setTextAlignment(Qt.AlignCenter)
+                grades_table.setItem(row, 3, student_attempt_item)
             
-            grades_table.resizeColumnsToContents()
+            # grades_table.resizeColumnsToContents()
             layout.addWidget(grades_table)
             
             dialog.exec_()
@@ -2406,6 +2434,10 @@ class MainMenuTeacher(QMainWindow):
 
     def test_const_open(self):
         self.test_window = TestConstructor(self.id_user, self.fio, self.conn)
+
+        parent_pos = self.pos()  # местоположение окна
+        self.test_window.move(parent_pos.x() + 50, parent_pos.y() + 50)
+
         self.test_window.show()
 
     def logout(self): # выход из учетки
@@ -2421,6 +2453,7 @@ class TestConstructor(QDialog):
         self.id_user = id_user
         self.fio = fio
         self.conn = conn
+        self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setModal(True)
         self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
 
@@ -2489,11 +2522,15 @@ class TestConstructor(QDialog):
         group_layout.addWidget(self.group_combo)
         test_info_layout.addLayout(group_layout)
 
+        date_attempt_layout = QHBoxLayout() # область для даты и количества попыток теста
+        test_info_layout.addLayout(date_attempt_layout)
+
         # выбор срока выполнения
-        date_layout = QHBoxLayout()
+        date_layout = QVBoxLayout()
         date_label = QLabel("Срок выполнения:")
         date_label.setStyleSheet("font-family: Roboto; color: #333;")
         self.deadline_date = QDateEdit()
+        self.deadline_date.setFixedSize(130, 28)
         self.deadline_date.setCalendarPopup(True)
         self.deadline_date.setDate(QDate.currentDate())
         self.deadline_date.setStyleSheet("""
@@ -2505,7 +2542,20 @@ class TestConstructor(QDialog):
         """)
         date_layout.addWidget(date_label)
         date_layout.addWidget(self.deadline_date)
-        test_info_layout.addLayout(date_layout)
+        date_attempt_layout.addLayout(date_layout)
+
+        # выбор количества попыток
+        attempt_layout = QVBoxLayout()
+        attempt_label = QLabel("Попытки:")
+        attempt_label.setStyleSheet("font-family: Roboto; color: #333;")
+        self.attempt_num = QSpinBox()
+        self.attempt_num.setFixedSize(80, 30)
+        self.attempt_num.setMinimum(1)
+        attempt_layout.addWidget(attempt_label)
+        attempt_layout.addWidget(self.attempt_num)
+        date_attempt_layout.addStretch(1)
+        date_attempt_layout.addLayout(attempt_layout)
+        date_attempt_layout.addSpacing(106)
 
         test_constructor_layout = QVBoxLayout() # группа для составления вопросов
         question_layout = QVBoxLayout()
@@ -2639,6 +2689,8 @@ class TestConstructor(QDialog):
                 border: none;
             }
         """)
+        self.questions_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.questions_list.customContextMenuRequested.connect(self.show_context_menu)
         right_layout.addWidget(self.questions_list)
 
         # статистика теста
@@ -2700,6 +2752,43 @@ class TestConstructor(QDialog):
         right_layout.addStretch(1)
 
         self.load_groups_from_db()
+
+    def show_context_menu(self, position): # контекстное меню
+        item = self.questions_list.itemAt(position)
+        
+        if item is not None:
+            menu = QMenu()
+            
+            delete_action = QAction("Удалить запись", self)
+            delete_action.triggered.connect(lambda: self.delete_selected_item(item))
+            
+            menu.addAction(delete_action)
+            
+            menu.exec_(self.questions_list.viewport().mapToGlobal(position))
+
+    def delete_selected_item(self, item): # удаление выбранного элемента
+        row = self.questions_list.row(item)
+        self.questions_list.takeItem(row)
+        self.update_number()
+        self.update_questions_count()
+
+    def update_number(self): # обновление нумеровки заданий в списке
+        for i in range(self.questions_list.count()):
+            item = self.questions_list.item(i)
+            item_data = item.data(Qt.UserRole)
+            
+            if item_data:
+                item_data['question_number'] = i + 1
+                item.setData(Qt.UserRole, item_data)
+                
+                current_text = item.text()
+                
+                parts = current_text.split('\n', 2)
+                if len(parts) >= 3:
+                    new_text = (f"Задание {i + 1}\n"
+                            f"{parts[1]}\n"
+                            f"{parts[2]}")
+                    item.setText(new_text)
 
     def limit_question_length(self): # ограничение символов для текста вопроса
         text = self.question_text_edit.toPlainText()
@@ -2793,7 +2882,7 @@ class TestConstructor(QDialog):
         
         return False
 
-    def save_test(self):
+    def save_test(self): # сохранение теста в бд
         if not self.validate_test_data():
             return
         
@@ -2819,11 +2908,12 @@ class TestConstructor(QDialog):
         
             deadline_date = self.deadline_date.date().toString("yyyy-MM-dd")
             upload_date = QDate.currentDate().toString("yyyy-MM-dd")
+            attempt = self.attempt_num.value()
 
             cursor.execute("""
-                insert into test (id_name, id_name_class, upload, deadline)
-                values (?, ?, ?, ?)
-            """, (name_id, group_id, upload_date, deadline_date))
+                insert into test (id_name, id_name_class, upload, deadline, num_of_attempts)
+                values (?, ?, ?, ?, ?)
+            """, (name_id, group_id, upload_date, deadline_date, attempt))
             
             test_id = cursor.execute("select @@IDENTITY").fetchone()[0]
             

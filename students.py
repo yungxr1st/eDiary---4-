@@ -928,14 +928,17 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 cast(count(distinct t_a.id_question) as varchar(2)) as questions, 
                 convert(varchar, s_t.grade) as grade, 
                 convert(varchar, s_t.grade_percent) as grade_percent, 
-                t.id_test
+                t.id_test,
+                t.num_of_attempts,
+                s_t.attempt_num
                 from test_name t_n
                 inner join test t on t.id_name = t_n.id_name
                 left join test_content t_c on t_c.id_test = t.id_test
                 left join test_answer t_a on t_a.id_answer = t_c.id_answer
                 left join solved_tests s_t on s_t.id_test = t.id_test and s_t.id_user = @id_user
                 where t.id_name_class = ?
-                group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, s_t.grade_percent
+                group by t_n.name, t.upload, t.deadline, t.id_test, s_t.grade, 
+	                s_t.grade_percent, t.num_of_attempts, s_t.attempt_num
                 order by t.id_test desc
             """)
             cursor.execute(query, (self.id_user, self.tests_group_combo.currentData()))
@@ -954,19 +957,28 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     grade = record[4]
                     grade_percent = record[5]
                     test_id = record[6]
+                    attempt = record[7]
+                    student_attempt = record[8]
 
                     formatted_upload = upload.strftime("%d.%m.%Y")
                     formatted_deadline = self.deadline.strftime("%d.%m.%Y")
-
-                    if grade == None:
-                        grade = "Нет оценки"
-                    if grade_percent == None:
-                        grade_percent = "0"
 
                     date_text = (
                         f"Тест открыт с: {formatted_upload}\n"
                         f"Срок сдачи: {formatted_deadline}"
                     )
+
+                    if student_attempt == None:
+                        student_attempt = 0
+
+                    attempt_text = (
+                        f"Попытки: {student_attempt}/{attempt}"
+                    )
+
+                    if grade == None:
+                        grade = "Нет оценки"
+                    if grade_percent == None:
+                        grade_percent = "0"
 
                     name = (
                         f"{test_name}\n{grade} "
@@ -979,6 +991,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
                     test_item = (
                         f"{name}\n"
+                        f"{attempt_text}\n"
                         f"{questions_sum}\n"
                         f"{date_item}"
                     )
@@ -986,7 +999,12 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                     test_list = QListWidgetItem(test_item)
                     self.tests_table.addItem(test_list)
 
-                    test_list.setData(Qt.UserRole, {"test_id": test_id, "deadline": self.deadline})
+                    test_list.setData(Qt.UserRole, {
+                        "test_id": test_id, 
+                        "deadline": self.deadline,
+                        "attempt": attempt,
+                        "student_attempt": student_attempt
+                    })
 
             else:
                 no_tests_item = QListWidgetItem("Данные о тестах отсутствуют")
@@ -1016,6 +1034,12 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         current_date = QDate.currentDate()
         if current_date > deadline_date:
             QMessageBox.warning(self, "Ошибка", "Срок выполнения теста окончен")
+            return
+        
+        attempt = item.data(Qt.UserRole)["attempt"]
+        student_attempt = item.data(Qt.UserRole)["student_attempt"]
+        if attempt <= student_attempt:
+            QMessageBox.warning(self, "Ошибка", "Достигнуто максимальное число попыток")
             return
         
         try:
@@ -1554,7 +1578,10 @@ class TestExecutionWindow(QDialog): # окно решения теста
             cursor = self.conn.cursor()
             
             cursor.execute("""
-                select id_attempt from solved_tests 
+                select 
+                    id_attempt,
+                    attempt_num
+                from solved_tests 
                 where id_user = ? and id_test = ?
             """, (self.user_id, self.test_id))
             
@@ -1563,14 +1590,18 @@ class TestExecutionWindow(QDialog): # окно решения теста
             if existing_attempt:
                 cursor.execute("""
                     update solved_tests 
-                    set grade = ?, grade_percent = ? 
+                    set 
+                        grade = ?, 
+                        grade_percent = ?,
+                        attempt_num = attempt_num + 1 
                     where id_attempt = ?
                 """, (grade, percentage, existing_attempt[0]))
                 action = "обновлены"
             else:
                 cursor.execute("""
-                    insert into solved_tests (id_user, id_test, grade, grade_percent)
-                    values (?, ?, ?, ?)
+                    insert into solved_tests (id_user, id_test, 
+                        grade, grade_percent, attempt_num)
+                    values (?, ?, ?, ?, 1)
                 """, (self.user_id, self.test_id, grade, percentage))
                 action = "сохранены"
             
@@ -1663,14 +1694,17 @@ class TestExecutionWindow(QDialog): # окно решения теста
             if existing_attempt:
                 cursor.execute("""
                     update solved_tests 
-                    set grade = ?, grade_percent = ? 
+                    set 
+                        grade = ?,
+                        grade_percent = ?,
+                        attempt_num = attempt_num + 1 
                     where id_attempt = ?
                 """, (grade, percentage, existing_attempt[0]))
                 action = "обновлены"
             else:
                 cursor.execute("""
-                    insert into solved_tests (id_user, id_test, grade, grade_percent)
-                    values (?, ?, ?, ?)
+                    insert into solved_tests (id_user, id_test, grade, grade_percent, attempt_num)
+                    values (?, ?, ?, ?, 1)
                 """, (self.user_id, self.test_id, grade, percentage))
                 action = "сохранены"
             
