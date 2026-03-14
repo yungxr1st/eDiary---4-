@@ -1959,6 +1959,8 @@ class MainMenuTeacher(QMainWindow):
         self.tests_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.tests_table.setSelectionMode(QTableWidget.SingleSelection)
         self.tests_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tests_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tests_table.customContextMenuRequested.connect(self.edit_test_menu)
         self.tests_table.itemSelectionChanged.connect(self.on_tests_selected)
         self.tests_table.setStyleSheet("""
             QTableWidget {
@@ -2191,6 +2193,41 @@ class MainMenuTeacher(QMainWindow):
             self.tests_table.setRowCount(0)
             self.view_grade_button.setEnabled(False)
             self.del_test_button.setEnabled(False)
+
+    def edit_test_menu(self, position): # контекстное меню
+        item = self.tests_table.itemAt(position)
+        
+        if item is not None:
+            menu = QMenu()
+            
+            edit_action = QAction("Изменить тест", self)
+            edit_action.triggered.connect(self.open_test_editor)
+            
+            menu.addAction(edit_action)
+            
+            menu.exec_(self.tests_table.viewport().mapToGlobal(position))
+
+    def open_test_editor(self): # редактирование теста
+        selected_row = self.tests_table.currentRow()
+        if selected_row < 0:
+            return
+        
+        test_item = self.tests_table.item(selected_row, 2)
+        if not test_item:
+            return
+        
+        test_data = test_item.data(Qt.UserRole)
+        if not test_data or 'test_id' not in test_data:
+            return
+        
+        self.test_editor = TestConstructor(
+            id_user=self.id_user,
+            fio=self.fio,
+            conn=self.conn,
+            edit_mode=True,
+            test_id=test_data['test_id']
+        )
+        self.test_editor.show()
 
     def on_tests_selected(self):
         selected_items = self.tests_table.selectedItems()
@@ -2448,11 +2485,13 @@ class MainMenuTeacher(QMainWindow):
 
 
 class TestConstructor(QDialog):
-    def __init__(self, id_user = None, fio = None, conn = None):
+    def __init__(self, id_user=None, fio=None, conn=None, edit_mode=False, test_id=None):
         super().__init__()
         self.id_user = id_user
         self.fio = fio
         self.conn = conn
+        self.edit_mode = edit_mode
+        self.test_id = test_id
         self.setWindowIcon(QIcon("diary_120704.ico"))
         self.setModal(True)
         self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
@@ -2753,6 +2792,112 @@ class TestConstructor(QDialog):
 
         self.load_groups_from_db()
 
+        if self.edit_mode and self.test_id:
+            self.setWindowTitle(f"Редактирование теста")
+            self.load_test_data()
+            self.save_test_btn.setText("Сохранить изменения")
+        else:
+            self.setWindowTitle("Конструктор тестов")
+
+    def load_test_data(self): # загрузка теста для редактирования
+        try:
+            cursor = self.conn.cursor()
+            
+            cursor.execute("""
+                select 
+                    t_n.name,
+                    t.id_name_class,
+                    t.deadline,
+                    t.num_of_attempts
+                from test t
+                inner join test_name t_n on t_n.id_name = t.id_name
+                where t.id_test = ?
+            """, (self.test_id,))
+            test_info = cursor.fetchone()
+            if not test_info:
+                QMessageBox.warning(self, "Ошибка", "Тест не найден")
+                return
+            
+            self.test_name_input.setText(test_info[0])
+            
+            group_id = test_info[1]
+            for i in range(self.group_combo.count()):
+                if self.group_combo.itemData(i) == group_id:
+                    self.group_combo.setCurrentIndex(i)
+                    break
+            
+            if test_info[2]:
+                self.deadline_date.setDate(test_info[2])
+
+            if test_info[3]:
+                self.attempt_num.setValue(test_info[3])
+            
+            cursor.execute("""
+                select distinct
+                    t_q.id_question,
+                    t_q.text
+                from test_content t_c
+                inner join test_answer t_a on t_a.id_answer = t_c.id_answer
+                inner join test_question t_q on t_q.id_question = t_a.id_question
+                where t_c.id_test = ?
+                order by t_q.id_question
+            """, (self.test_id,))
+            questions = cursor.fetchall()
+            
+            for question_row in questions:
+                question_id = question_row[0]
+                question_text = question_row[1]
+                
+                cursor.execute("""
+                    select 
+                        t_a.id_answer,
+                        t_a.answer,
+                        t_a.is_true
+                    from test_answer t_a
+                    inner join test_content t_c on t_c.id_answer = t_a.id_answer
+                    where t_a.id_question = ? and t_c.id_test = ?
+                    order by t_a.id_answer
+                """, (question_id, self.test_id))
+                answers = cursor.fetchall()
+                
+                answers_data = []
+                for answer in answers:
+                    answers_data.append({
+                        'text': answer[1],
+                        'is_correct': bool(answer[2])
+                    })
+                self.add_question_to_list(question_text, answers_data)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить тест: {str(e)}")
+
+    def add_question_to_list(self, question_text, answers_data):
+        question_number = self.questions_list.count() + 1
+        
+        answers_display = []
+        for answer in answers_data:
+            marker = " + " if answer['is_correct'] else " - "
+            answers_display.append(f"{answer['text']}{marker}")
+        
+        answers_text = "; ".join(answers_display)
+        
+        item_text = (f"Задание {question_number}\n"
+                    f"Вопрос: {question_text}\n"
+                    f"Варианты ответов: {answers_text}")
+        
+        list_item = QListWidgetItem(item_text)
+        list_item.setData(Qt.UserRole, {
+            'question_text': question_text,
+            'answers': answers_data,
+            'question_number': question_number,
+            'is_edited': False
+        })
+        
+        self.questions_list.addItem(list_item)
+        self.update_questions_count()
+
     def show_context_menu(self, position): # контекстное меню
         item = self.questions_list.itemAt(position)
         
@@ -2910,12 +3055,32 @@ class TestConstructor(QDialog):
             upload_date = QDate.currentDate().toString("yyyy-MM-dd")
             attempt = self.attempt_num.value()
 
-            cursor.execute("""
-                insert into test (id_name, id_name_class, upload, deadline, num_of_attempts)
-                values (?, ?, ?, ?, ?)
-            """, (name_id, group_id, upload_date, deadline_date, attempt))
-            
-            test_id = cursor.execute("select @@IDENTITY").fetchone()[0]
+            if self.edit_mode and self.test_id:
+                cursor.execute("""
+                    update test 
+                    set 
+                        id_name = ?, 
+                        id_name_class = ?, 
+                        deadline = ?, 
+                        num_of_attempts = ?
+                    where id_test = ?
+                """, (name_id, group_id, deadline_date, attempt, self.test_id))
+                
+                cursor.execute("""
+                    delete from test_content 
+                    where id_test = ?
+                """, (self.test_id,))
+                
+                test_id = self.test_id
+                action = "обновлен"
+            else:
+                cursor.execute("""
+                    insert into test (id_name, id_name_class, upload, deadline, num_of_attempts)
+                    values (?, ?, ?, ?, ?)
+                """, (name_id, group_id, upload_date, deadline_date, attempt))
+                
+                test_id = cursor.execute("select @@IDENTITY").fetchone()[0]
+                action = "сохранен"
             
             for i in range(self.questions_list.count()):
                 item = self.questions_list.item(i)
@@ -2972,10 +3137,11 @@ class TestConstructor(QDialog):
             QMessageBox.information(
                 self,
                 "Успех",
-                f"Тест '{test_name}' успешно сохранен"
+                f"Тест '{test_name}' успешно {action}"
             )
             
             self.clear_form()
+            self.close()
 
         except Exception as e:
             QMessageBox.critical(
@@ -3000,7 +3166,7 @@ class TestConstructor(QDialog):
             return False
         
         deadline_date = self.deadline_date.date()
-        if deadline_date < QDate.currentDate():
+        if deadline_date < QDate.currentDate() and not self.edit_mode:
             reply = QMessageBox.question(
                 self,
                 "Подтверждение",
