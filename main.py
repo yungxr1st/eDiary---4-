@@ -10,10 +10,11 @@ from admin import MainMenuAdmin
 from students import MainMenuStudent
 from administration import MainMenuAdministration
 
-uname = "youruser"
-pswd = "password"
+uname = "other_users"
+pswd = "nopswd"
 driver = "{ODBC Driver 17 for SQL Server}"
-server = "DESKTOP-Q4NUJUS"
+# server = "DESKTOP-Q4NUJUS"
+server = "100.72.0.37,48188"
 database = "diary"
 database1 = "diary_pd"
 
@@ -21,9 +22,14 @@ database1 = "diary_pd"
 #     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
 #     ';DATABASE=' + database + ';UID=' + uname + ';PWD=' + pswd)
 
+# conn = pyodbc.connect(
+#     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
+#     ';DATABASE=' + database1 + ';Trusted_Connection=yes;' + 'TrustServerCertificate=yes;'
+# )
+
 conn = pyodbc.connect(
     'DRIVER=' + driver + ';SERVER=' + server + "\\MSSQLSERVER02" +
-    ';DATABASE=' + database1 + ';Trusted_Connection=yes;' + 'TrustServerCertificate=yes;'
+    ';DATABASE=' + database1 + ';UID=' + uname + ';PWD=' + pswd
 )
 
 
