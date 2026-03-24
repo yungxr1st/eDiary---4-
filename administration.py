@@ -1,10 +1,10 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QLabel, QComboBox, 
-                             QLineEdit, QTabWidget,
+                             QLineEdit, QTabWidget, QFrame, QProgressBar,
                              QDialog, QFormLayout, QMessageBox,
                              QDateEdit, QTableWidget, QTableWidgetItem, QHeaderView)
-from PyQt5.QtGui import (QIcon, QColor, QFont)
-from PyQt5.QtCore import (Qt, QDate)
+from PyQt5.QtGui import (QIcon, QColor, QFont, QIntValidator)
+from PyQt5.QtCore import (Qt, QDate, QTimer)
 
 
 class MainMenuAdministration(QMainWindow): # главное меню для администрации
@@ -161,6 +161,29 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         self.button_groups_subjects.clicked.connect(self.show_groups_subjects)
         group_button_layout.addWidget(self.button_groups_subjects, alignment=Qt.AlignLeft)
+        group_button_layout.addSpacing(5)
+
+        # кнопка оплата
+        self.button_payment = QPushButton("Оплата")
+        self.button_payment.setFixedSize(200, 40)
+        self.button_payment.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+                text-align: left;
+                padding-left: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.button_payment.clicked.connect(self.show_payments)
+        group_button_layout.addWidget(self.button_payment, alignment=Qt.AlignLeft)
 
         group_button_layout.addStretch(2)
 
@@ -168,6 +191,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.stats()
         self.groups_subjects()
         self.schedule()
+        self.payments()
 
         self.show_users()
 
@@ -3126,6 +3150,783 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         except Exception as e:
             self.schedule_subject.clear()
             self.schedule_subject.setText(f"Ошибка загрузки: {str(e)}")
+
+    def show_payments(self):
+        self.clear_content_layout()
+
+        self.content_layout_v.addWidget(self.payments_widget)
+
+        self.load_groups_for_payments()
+        self.load_groups_for_history()
+
+    def payments(self):
+        self.payments_widget = QWidget()
+        payments_history_layout = QVBoxLayout()
+        self.payments_widget.setLayout(payments_history_layout)
+
+        self.payments_history_tab = QTabWidget() # вкладки
+        self.tab_payments = QWidget() # вкладка групп
+        self.payments_history_tab.addTab(self.tab_payments, "Оплата")
+        self.tab_history = QWidget() # вкладка предметов
+        self.payments_history_tab.addTab(self.tab_history, "История оплаты")
+
+        payments_label = QLabel("Оплата занятий:")
+        payments_label.setAlignment(Qt.AlignLeft)
+        payments_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        """)
+        payments_history_layout.addWidget(payments_label)
+        payments_history_layout.addWidget(self.payments_history_tab)
+
+        # --------------------------------------------------- tab-вкладка оплата ---------------------------------------------------
+        payments_layout = QVBoxLayout()
+        self.tab_payments.setLayout(payments_layout)
+        
+        payments_top_layout = QHBoxLayout() # для группы
+        payments_layout.addLayout(payments_top_layout)
+        
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        payments_top_layout.addWidget(group_label)
+        
+        self.payments_group_combo = QComboBox()
+        self.payments_group_combo.addItems(["Выберите группу"])
+        self.payments_group_combo.setFixedSize(150, 30)
+        self.payments_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.payments_group_combo.currentIndexChanged.connect(self.load_payments)
+        payments_top_layout.addWidget(self.payments_group_combo)
+        payments_top_layout.addStretch(1)
+
+        # для таблицы оплаты
+        self.payments_table = QTableWidget()
+        self.payments_table.setFixedSize(600, 330)
+        self.payments_table.setColumnCount(4)
+        self.payments_table.setHorizontalHeaderLabels(["ФИО", "Группа", "Статус оплаты", "Занятия"])
+        self.payments_table.horizontalHeader().setStretchLastSection(True)
+        self.payments_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.payments_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.payments_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.payments_table.itemSelectionChanged.connect(self.on_payments_selected)
+        self.payments_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.payments_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # фио
+        header.resizeSection(0, 250)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # группа (предмет)
+        header.resizeSection(1, 130)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # статус оплаты
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # занятия
+        payments_layout.addWidget(self.payments_table)
+        payments_layout.addStretch(1)
+
+        payments_bottom_layout = QHBoxLayout() # для выбора количества занятий
+        payments_layout.addLayout(payments_bottom_layout)
+        
+        self.payments_lessons_combo = QComboBox()
+        self.payments_lessons_combo.addItems([
+            "Выберите услугу",
+            "1",
+            "2",
+            "4",
+            "6",
+            "8"
+        ])
+        self.payments_lessons_combo.setFixedSize(150, 30)
+        self.payments_lessons_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.payments_lessons_combo.currentIndexChanged.connect(self.price_count)
+        payments_bottom_layout.addWidget(self.payments_lessons_combo)
+        payments_bottom_layout.addSpacing(10)
+        
+        self.amount_label = QLabel("Сумма оплаты: 0 ₽")
+        self.amount_label.setStyleSheet("font-size: 14px; color: #333;")
+        payments_bottom_layout.addWidget(self.amount_label)
+        payments_bottom_layout.addStretch(1)
+
+        # кнопка оплата
+        self.button_add_payment = QPushButton("Внести оплату")
+        self.button_add_payment.setFixedSize(160, 38)
+        self.button_add_payment.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.button_add_payment.setEnabled(False)
+        self.button_add_payment.clicked.connect(self.choice_payment)
+        payments_bottom_layout.addWidget(self.button_add_payment)
+
+        self.price_for_group = None
+        self.selected_payments_id = None
+        self.selected_payments_user = None
+        self.selected_payments_group = None
+
+        # --------------------------------------------------- tab-вкладка история оплаты ---------------------------------------------------
+        history_layout = QVBoxLayout()
+        self.tab_history.setLayout(history_layout)
+        
+        history_top_layout = QHBoxLayout() # для группы
+        history_layout.addLayout(history_top_layout)
+        
+        group_label = QLabel("Группа:")
+        group_label.setStyleSheet("font-family: Roboto; color: #333;")
+        history_top_layout.addWidget(group_label)
+        
+        self.history_group_combo = QComboBox()
+        self.history_group_combo.addItems(["Выберите группу"])
+        self.history_group_combo.setFixedSize(150, 30)
+        self.history_group_combo.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.history_group_combo.currentIndexChanged.connect(self.load_history)
+        history_top_layout.addWidget(self.history_group_combo)
+        history_top_layout.addStretch(1)
+
+        date_label = QLabel("Дата оплаты:")
+        date_label.setStyleSheet("font-family: Roboto; color: #333;")
+        history_top_layout.addWidget(date_label)
+        
+        self.history_date = QDateEdit()
+        self.history_date.setFixedSize(120, 30)
+        self.history_date.setCalendarPopup(True)
+        self.history_date.setDate(QDate.currentDate())
+        self.history_date.setStyleSheet("""
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            color: #333;
+            padding: 5px;
+            font-family: Roboto;
+        """)
+        self.history_date.dateChanged.connect(self.load_history)
+        history_top_layout.addWidget(self.history_date)
+
+        # для таблицы истории оплаты
+        self.history_table = QTableWidget()
+        self.history_table.setFixedSize(600, 330)
+        self.history_table.setColumnCount(6)
+        self.history_table.setHorizontalHeaderLabels(["ФИО", "Группа", "Тип оплаты", "Занятия", "Сумма оплаты", "Дата платежа"])
+        self.history_table.horizontalHeader().setStretchLastSection(True)
+        self.history_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.history_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.history_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.history_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.history_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # фио
+        header.resizeSection(0, 200)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # группа (предмет)
+        header.resizeSection(1, 100)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # занятия
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # сумма платежа
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents) # дата платежа
+        history_layout.addWidget(self.history_table)
+        history_layout.addStretch(1)
+
+    def load_payments(self):
+        self.payments_lessons_combo.setCurrentIndex(0)
+        self.amount_label.setText(f"Сумма оплаты: 0 ₽")
+
+        try:
+            cursor = self.conn.cursor()
+            
+            query = ("""
+                select
+                    s_o_p.id_status,
+                    u.id_user,
+                    n_c.id_name_class,
+                    u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                    convert(varchar, n_c.num) + n_c.letter + ' (' + s.subject_name + ')' as [group],
+                    isnull(t_s.title, 'Не оплачено') as [status],
+                    isnull(s_o_p.rest_of_lessons, 0) as rest,
+	                n_c.price
+                from users u
+                inner join class c on c.id_user = u.id_user
+                inner join name_class n_c on n_c.id_name_class = c.id_name_class
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join subject s on s.id_subject = s_t.id_subject
+                left join status_of_payments s_o_p on s_o_p.id_user = u.id_user
+                left join type_status t_s on t_s.id_type_st = s_o_p.id_type_st
+                where n_c.id_name_class = ?
+                order by u.surname
+            """)
+            cursor.execute(query, self.payments_group_combo.currentData())
+            payments_data = cursor.fetchall()
+            
+            self.payments_table.setRowCount(len(payments_data))
+            
+            for row, record in enumerate(payments_data):
+                id_status = record[0]
+                id_user = record[1]
+                id_group = record[2]
+                fio = record[3]
+                name_group = record[4]
+                status = record[5]
+                rest = str(record[6])
+                price = record[7]
+
+                self.price_for_group = price
+                
+                # фио
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setData(Qt.UserRole, {
+                    'id_status': id_status,
+                    'id_user': id_user,
+                    'id_group': id_group
+                })
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.payments_table.setItem(row, 0, fio_item)
+
+                # группа
+                group_item = QTableWidgetItem(name_group)
+                group_item.setData(Qt.UserRole, {
+                    'id_status': id_status,
+                    'id_user': id_user,
+                    'id_group': id_group
+                })
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.payments_table.setItem(row, 1, group_item)
+
+                # статус
+                status_item = QTableWidgetItem(status)
+                status_item.setData(Qt.UserRole, {
+                    'id_status': id_status,
+                    'id_user': id_user,
+                    'id_group': id_group
+                })
+                status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
+                status_item.setTextAlignment(Qt.AlignCenter)
+
+                # цвет статуса
+                if str(status) == "Оплачено":
+                    status_item.setForeground(QColor("#27ae60"))  # зеленый
+                elif str(status) == "Не оплачено":
+                    status_item.setForeground(QColor("#e74c3c"))  # красный
+
+                self.payments_table.setItem(row, 2, status_item)
+
+                # остаток занятий
+                rest_item = QTableWidgetItem(rest)
+                rest_item.setData(Qt.UserRole, {
+                    'id_status': id_status,
+                    'id_user': id_user,
+                    'id_group': id_group
+                })
+                rest_item.setFlags(rest_item.flags() & ~Qt.ItemIsEditable)
+                rest_item.setTextAlignment(Qt.AlignCenter)
+
+                # цвет статуса
+                if rest == "0":
+                    rest_item.setForeground(QColor("#e74c3c"))  # красный
+                else:
+                    rest_item.setForeground(QColor("#27ae60"))  # зеленый
+
+                self.payments_table.setItem(row, 3, rest_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить список оплаты: {str(e)}")
+
+    def load_history(self):
+        if self.history_group_combo.currentData() == 0:
+            return
+
+        try:
+            history_date = self.history_date.date()
+            history_date_str = history_date.toString("yyyy-MM-dd")
+
+            cursor = self.conn.cursor()
+            
+            query = ("""
+                select
+                    u.surname + ' ' + u.[name] + ' ' + u.patronymic as fio,
+                    convert(varchar, n_c.num) + n_c.letter + ' (' + s.subject_name + ')' as [group],
+                    p_m.title,
+                    h_o_p.paid_lessons,
+                    h_o_p.sum_of_payment,
+                    h_o_p.payment_date
+                from history_of_payments h_o_p
+                inner join payments_method p_m on p_m.id_type_mt = h_o_p.id_type_mt
+                inner join users u on u.id_user = h_o_p.id_user
+                inner join name_class n_c on n_c.id_name_class = h_o_p.id_name_class
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join subject s on s.id_subject = s_t.id_subject
+                where n_c.id_name_class = ? and convert(date, h_o_p.payment_date) = ?
+                order by h_o_p.payment_date desc
+            """)
+            cursor.execute(query, (
+                self.history_group_combo.currentData(),
+                history_date_str
+            ))
+            history_data = cursor.fetchall()
+            
+            self.history_table.setRowCount(len(history_data))
+            
+            for row, record in enumerate(history_data):
+                fio = record[0]
+                name_group = record[1]
+                type_payments = record[2]
+                paid_lessons = str(record[3])
+                sum_of_payment = str(record[4])
+                payment_date = record[5]
+
+                formatted_date = payment_date.strftime("%d.%m.%Y %H:%M:%S")
+                
+                # фио
+                fio_item = QTableWidgetItem(fio)
+                fio_item.setFlags(fio_item.flags() & ~Qt.ItemIsEditable)
+                fio_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 0, fio_item)
+
+                # группа
+                group_item = QTableWidgetItem(name_group)
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 1, group_item)
+
+                # тип оплаты
+                type_item = QTableWidgetItem(type_payments)
+                type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)
+                type_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 2, type_item)
+
+                # оплаченные занятия
+                paid_item = QTableWidgetItem(paid_lessons)
+                paid_item.setFlags(paid_item.flags() & ~Qt.ItemIsEditable)
+                paid_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 3, paid_item)
+
+                # сумма платежа
+                sum_item = QTableWidgetItem(sum_of_payment)
+                sum_item.setFlags(sum_item.flags() & ~Qt.ItemIsEditable)
+                sum_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 4, sum_item)
+
+                # дата платежа
+                date_item = QTableWidgetItem(formatted_date)
+                date_item.setFlags(date_item.flags() & ~Qt.ItemIsEditable)
+                date_item.setTextAlignment(Qt.AlignCenter)
+                self.history_table.setItem(row, 5, date_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить историю платежей: {str(e)}")
+
+    def on_payments_selected(self): # выбор строки в таблице
+        selected_items = self.payments_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            if item_data['id_status'] == None:
+                item_data['id_status'] = 0
+            
+            if (item_data and 'id_status' in item_data
+                    and 'id_user' in item_data
+                    and 'id_group' in item_data):
+                self.selected_payments_id = item_data['id_status']
+                self.selected_payments_user = item_data['id_user']
+                self.selected_payments_group = item_data['id_group']
+                self.button_add_payment.setEnabled(True)
+            else:
+                self.selected_payments_id = None
+                self.selected_payments_user = None
+                self.selected_payments_group = None
+                self.button_add_payment.setEnabled(False)
+        else:
+            self.selected_payments_id = None
+            self.selected_payments_user = None
+            self.selected_payments_group = None
+            self.button_add_payment.setEnabled(False)
+
+    def choice_payment(self):
+        if self.payments_lessons_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите количество занятий в перечне услуг")
+            return
+        
+        choice_dialog = QDialog(self)
+        choice_dialog.setWindowTitle("Оплата")
+        choice_dialog.setFixedSize(320, 120)
+        choice_dialog.setModal(True)
+        choice_dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+
+        layout = QVBoxLayout()
+        choice_dialog.setLayout(layout)
+
+        label = QLabel("Тип оплаты")
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet("""
+            font-size: 17px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+        """)
+        layout.addWidget(label)
+        layout.addStretch(1)
+        
+        buttons_layout = QHBoxLayout()
+        layout.addLayout(buttons_layout)
+
+        # кнопка оплаты картой
+        card_method = QPushButton("Карта")
+        card_method.setFixedSize(120, 50)
+        card_method.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        card_method.clicked.connect(lambda: self.card(choice_dialog))
+        buttons_layout.addWidget(card_method)
+
+        # кнопка оплаты наличными
+        cash_method = QPushButton("Наличные")
+        cash_method.setFixedSize(120, 50)
+        cash_method.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        cash_method.clicked.connect(lambda: self.cash(choice_dialog))
+        buttons_layout.addWidget(cash_method)
+
+        choice_dialog.exec_()
+
+    def card(self, choice_dialog=None):
+        if choice_dialog:
+            choice_dialog.accept()
+
+        card_dialog = QDialog(self)
+        card_dialog.setWindowTitle("Оплата картой")
+        card_dialog.setFixedSize(350, 150)
+        card_dialog.setModal(True)
+        card_dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+
+        layout = QVBoxLayout()
+        card_dialog.setLayout(layout)
+        
+        status_label = QLabel("Обработка платежа...")
+        status_label.setAlignment(Qt.AlignCenter)
+        status_label.setStyleSheet("font-size: 14px; margin: 10px;")
+        layout.addWidget(status_label)
+        
+        progress_bar = QProgressBar()
+        progress_bar.setRange(0, 100)
+        layout.addWidget(progress_bar)
+        
+        self.progress_value = 0
+        
+        def update_progress():
+            self.progress_value += 20
+            progress_bar.setValue(self.progress_value)
+            
+            if self.progress_value < 100:
+                QTimer.singleShot(300, update_progress)
+            else:
+                card_dialog.close()
+                self.add_payments(1)
+        
+        QTimer.singleShot(300, update_progress)
+
+        card_dialog.exec_()
+
+    def cash(self, choice_dialog=None):
+        if choice_dialog:
+            choice_dialog.accept()
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Оплата наличными")
+        dialog.setFixedSize(250, 200)
+        dialog.setModal(True)
+        dialog.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+
+        sum_label = QLabel()
+        sum_label.setText(f"Сумма к оплате: {self.sum}")
+        sum_label.setStyleSheet("""
+            font-size: 14px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+        """)
+        layout.addWidget(sum_label, alignment=Qt.AlignLeft)
+        layout.addStretch(1)
+
+        label = QLabel("Внесенная сумма:")
+        label.setStyleSheet("font-family: Roboto; color: #333;")
+        layout.addWidget(label, alignment=Qt.AlignLeft)
+        
+        self.sum_input = QLineEdit()
+        self.sum_input.setMaxLength(8)
+        self.sum_input.setFixedSize(230, 35)
+        self.sum_input.setValidator(QIntValidator(0, 99999999))
+        self.sum_input.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            padding: 5px;
+            font-family: roboto;
+            font-size: 14px;
+        """)
+        self.sum_input.textChanged.connect(self.update_change)
+        layout.addWidget(self.sum_input, alignment=Qt.AlignLeft)
+        layout.addStretch(1)
+
+        self.change_label = QLabel()
+        self.change_label.setText(f"Сдача: 0 ₽")
+        self.change_label.setStyleSheet("""
+            font-size: 14px;
+            font-weight: bold;
+            font-family: Roboto;
+            color: #333;
+        """)
+        layout.addWidget(self.change_label, alignment=Qt.AlignLeft)
+        layout.addStretch(1)
+        
+        self.pay_button = QPushButton("Внести")
+        self.pay_button.setFixedSize(80, 40)
+        self.pay_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.pay_button.setEnabled(False)
+        self.pay_button.clicked.connect(lambda: self.add_payments(2, dialog))
+        layout.addWidget(self.pay_button, alignment=Qt.AlignCenter)
+
+        dialog.exec_()
+
+    def update_change(self):
+        if self.sum_input.text() == '':
+            deposit = 0
+        else:
+            deposit = self.sum_input.text()
+        change = int(deposit) - self.sum
+        self.change_label.setText(f"Сдача: {change} ₽")
+
+        if change < 0:
+            self.pay_button.setEnabled(False)
+        elif change >= 0:
+            self.pay_button.setEnabled(True)
+
+    def add_payments(self, id_type=None, dialog=None):
+        id_pay_type = id_type
+
+        if self.payments_lessons_combo.currentIndex() == 0:
+            QMessageBox.warning(self, "Ошибка", "Выберите количество занятий в перечне услуг")
+            return
+        
+        try:
+            cursor = self.conn.cursor()
+
+            if self.selected_payments_id == 0: # добавление новой записи, если изначально отсутствовала
+                query = """
+                    insert into status_of_payments(id_user, id_name_class, id_type_st, rest_of_lessons)
+                    values (?, ?, ?, ?)
+                """
+                cursor.execute(query, (
+                    self.selected_payments_user,
+                    self.selected_payments_group,
+                    1,
+                    self.num_of_lesson
+                ))
+            else: # обновление имеющейся записи
+                query = """
+                    update status_of_payments
+                    set rest_of_lessons = rest_of_lessons + ?, id_type_st = ?
+                    where id_status = ?
+                """
+                cursor.execute(query, (
+                    self.num_of_lesson,
+                    1,
+                    self.selected_payments_id
+                ))
+
+            # добавление в историю платежей
+            query = """
+                insert into history_of_payments(id_user, id_name_class, 
+                    paid_lessons, id_type_mt, sum_of_payment, payment_date)
+                values (?, ?, ?, ?, ?, getdate())
+            """
+            cursor.execute(query, (
+                self.selected_payments_user,
+                self.selected_payments_group,
+                self.num_of_lesson,
+                id_pay_type,
+                self.sum
+            ))
+            
+            if dialog:
+                dialog.accept()
+
+            QMessageBox.information(
+                self,
+                "Успех",
+                f"Занятия успешно оплачены"
+            )
+
+            self.conn.commit()
+            cursor.close()
+            self.load_payments()
+            self.load_history()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось оформить платеж: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
+    def load_groups_for_payments(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.payments_group_combo) # в скобках указан элемент для подстановки
+
+    def load_groups_for_history(self): # выбор элемента для загрузки групп
+        self.load_groups_into_combo(self.history_group_combo) # в скобках указан элемент для подстановки
+
+    def price_count(self):
+        if self.payments_lessons_combo.currentIndex() == 0:
+            self.num_of_lesson = 0
+        else:
+            self.num_of_lesson = self.payments_lessons_combo.currentText()
+            self.num_of_lesson = int(self.num_of_lesson)
+
+        self.sum = self.price_for_group * self.num_of_lesson
+
+        self.amount_label.setText(f"Сумма оплаты: {self.sum} ₽")
 
 
 class EditUserDialog(QDialog): # окно редактирования пользователя
