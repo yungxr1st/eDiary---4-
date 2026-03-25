@@ -3156,6 +3156,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         self.content_layout_v.addWidget(self.payments_widget)
 
+        self.load_price()
         self.load_groups_for_payments()
         self.load_groups_for_history()
 
@@ -3165,10 +3166,12 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.payments_widget.setLayout(payments_history_layout)
 
         self.payments_history_tab = QTabWidget() # вкладки
-        self.tab_payments = QWidget() # вкладка групп
+        self.tab_payments = QWidget() # вкладка оплата
         self.payments_history_tab.addTab(self.tab_payments, "Оплата")
-        self.tab_history = QWidget() # вкладка предметов
+        self.tab_history = QWidget() # вкладка история
         self.payments_history_tab.addTab(self.tab_history, "История оплаты")
+        self.tab_price = QWidget() # вкладка прайс-лист
+        self.payments_history_tab.addTab(self.tab_price, "Прайс-лист")
 
         payments_label = QLabel("Оплата занятий:")
         payments_label.setAlignment(Qt.AlignLeft)
@@ -3419,6 +3422,117 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         history_layout.addWidget(self.history_table)
         history_layout.addStretch(1)
 
+        # --------------------------------------------------- tab-вкладка прайс лист ---------------------------------------------------
+        price_layout = QVBoxLayout()
+        self.tab_price.setLayout(price_layout)
+        price_layout.addStretch(1)
+
+        # для таблицы прайс-листа
+        self.price_table = QTableWidget()
+        self.price_table.setFixedSize(600, 300)
+        self.price_table.setColumnCount(2)
+        self.price_table.setHorizontalHeaderLabels(["Группа", "Стоимость занятия"])
+        self.price_table.horizontalHeader().setStretchLastSection(True)
+        self.price_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.price_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.price_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.price_table.itemSelectionChanged.connect(self.on_price_selected)
+        self.price_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: Roboto;
+                gridline-color: #eee;
+                outline: 0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f4fc;
+                color: #2c3e50;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                width: 0px;
+            }
+            QTableWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+        """)
+        header = self.price_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # группа
+        header.resizeSection(0, 290)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # цена
+        header.resizeSection(1, 290)
+        price_layout.addWidget(self.price_table, alignment=Qt.AlignCenter)
+        price_layout.addStretch(2)
+
+        price_bottom_layout = QHBoxLayout()
+        price_layout.addLayout(price_bottom_layout)
+        price_bottom_layout.addStretch(2)
+        price_input_layout = QVBoxLayout()
+        price_bottom_layout.addLayout(price_input_layout)
+
+        label = QLabel("Цена:")
+        label.setStyleSheet("font-family: Roboto; color: #333;")
+        price_input_layout.addWidget(label, alignment=Qt.AlignLeft)
+
+        # строка для ввода цены
+        self.price_input = QLineEdit()
+        self.price_input.setMaxLength(6)
+        self.price_input.setFixedSize(150, 35)
+        self.price_input.setValidator(QIntValidator(0, 999999))
+        self.price_input.setStyleSheet("""
+            border-radius: 5px;
+            border: 2px solid #3498db;
+            padding: 5px;
+            font-family: roboto;
+            font-size: 14px;
+        """)
+        price_input_layout.addWidget(self.price_input, alignment=Qt.AlignLeft)
+        price_input_layout.addSpacing(14)
+
+        # кнопка цена
+        self.button_add_price = QPushButton("Указать цену")
+        self.button_add_price.setFixedSize(160, 38)
+        self.button_add_price.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
+        self.button_add_price.setEnabled(False)
+        self.button_add_price.clicked.connect(self.add_price)
+        price_bottom_layout.addStretch(1)
+        price_bottom_layout.addWidget(self.button_add_price)
+        price_bottom_layout.addStretch(2)
+
+        self.selected_price_id = None
+
     def load_payments(self):
         self.payments_lessons_combo.setCurrentIndex(0)
         self.amount_label.setText(f"Сумма оплаты: 0 ₽")
@@ -3461,6 +3575,8 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 rest = str(record[6])
                 price = record[7]
 
+                if price == None:
+                    price = 0
                 self.price_for_group = price
                 
                 # фио
@@ -3612,6 +3728,55 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить историю платежей: {str(e)}")
 
+    def load_price(self):
+        try:
+            cursor = self.conn.cursor()
+            
+            query = ("""
+                select
+                    n_c.id_name_class,
+                    convert(varchar, n_c.num) + n_c.letter as [group],
+                    n_c.price
+                from name_class n_c
+                where n_c.is_active = 1
+            """)
+            cursor.execute(query)
+            price_data = cursor.fetchall()
+            
+            self.price_table.setRowCount(len(price_data))
+            
+            for row, record in enumerate(price_data):
+                id_group = record[0]
+                name_group = record[1]
+                price = record[2]
+
+                str_price = str(price)
+                if price == None:
+                    str_price = "Не указана"
+
+                # группа
+                group_item = QTableWidgetItem(name_group)
+                group_item.setData(Qt.UserRole, {
+                    'id_group': id_group
+                })
+                group_item.setFlags(group_item.flags() & ~Qt.ItemIsEditable)
+                group_item.setTextAlignment(Qt.AlignCenter)
+                self.price_table.setItem(row, 0, group_item)
+
+                # цена
+                price_item = QTableWidgetItem(str_price)
+                price_item.setData(Qt.UserRole, {
+                    'id_group': id_group
+                })
+                price_item.setFlags(price_item.flags() & ~Qt.ItemIsEditable)
+                price_item.setTextAlignment(Qt.AlignCenter)
+                self.price_table.setItem(row, 1, price_item)
+            
+            cursor.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить список оплаты: {str(e)}")
+
     def on_payments_selected(self): # выбор строки в таблице
         selected_items = self.payments_table.selectedItems()
         
@@ -3638,6 +3803,22 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             self.selected_payments_user = None
             self.selected_payments_group = None
             self.button_add_payment.setEnabled(False)
+
+    def on_price_selected(self): # выбор строки в таблице
+        selected_items = self.price_table.selectedItems()
+        
+        if selected_items:
+            item = selected_items[0]
+            item_data = item.data(Qt.UserRole)
+            if (item_data and 'id_group' in item_data):
+                self.selected_price_id = item_data['id_group']
+                self.button_add_price.setEnabled(True)
+            else:
+                self.selected_price_id = None
+                self.button_add_price.setEnabled(False)
+        else:
+            self.selected_price_id = None
+            self.button_add_price.setEnabled(False)
 
     def choice_payment(self):
         if self.payments_lessons_combo.currentIndex() == 0:
@@ -3911,6 +4092,48 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             if 'cursor' in locals():
                 self.conn.rollback()
 
+    def add_price(self):
+        if self.price_input.text() == "":
+            QMessageBox.warning(self, "Ошибка", "Укажите цену")
+            return
+        
+        price = self.price_input.text()
+        price = int(price)
+
+        if price == 0:
+            price = None
+        print(price)
+        
+        try:
+            cursor = self.conn.cursor()
+
+            # обновление цены
+            query = """
+                update name_class
+                set price = ?
+                where id_name_class = ?
+            """
+            cursor.execute(query, (
+                price,
+                self.selected_price_id
+            ))
+
+            QMessageBox.information(
+                self,
+                "Успех",
+                f"Цена успешно изменена"
+            )
+
+            self.conn.commit()
+            cursor.close()
+            self.load_price()
+            self.load_payments()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось указать цену: {str(e)}")
+            if 'cursor' in locals():
+                self.conn.rollback()
+
     def load_groups_for_payments(self): # выбор элемента для загрузки групп
         self.load_groups_into_combo(self.payments_group_combo) # в скобках указан элемент для подстановки
 
@@ -3927,6 +4150,9 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.sum = self.price_for_group * self.num_of_lesson
 
         self.amount_label.setText(f"Сумма оплаты: {self.sum} ₽")
+
+        if self.sum == 0:
+            self.button_add_payment.setEnabled(False)
 
 
 class EditUserDialog(QDialog): # окно редактирования пользователя
