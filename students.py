@@ -472,8 +472,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 from class c
                 inner join name_class n_c on n_c.id_name_class = c.id_name_class
                 inner join users u on u.id_user = c.id_user
+                inner join status_of_payments s_o_p on s_o_p.id_user = u.id_user
                 where u.id_user = ?
                 and n_c.is_active = 1
+                and s_o_p.rest_of_lessons > -1
                 order by n_c.num, n_c.letter
             """
             cursor.execute(query, self.id_user)
@@ -576,7 +578,9 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 inner join users u on u.id_user = s.id_user
                 inner join cabinet cab on cab.id_cabinet = s.id_cabinet
                 inner join class c on c.id_name_class = n_c.id_name_class
+                inner join status_of_payments s_o_p on s_o_p.id_user = u.id_user
                 where c.id_user = ?
+                and s_o_p.rest_of_lessons > -1
                 order by 
                     case s.day_of_week
                         when 'Понедельник' then 1
