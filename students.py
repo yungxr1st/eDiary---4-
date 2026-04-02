@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QLabel, QComboBox, 
                              QGroupBox, QListWidget, QDialog, 
                              QMessageBox, QListWidgetItem, QCheckBox, QRadioButton)
-from PyQt5.QtGui import (QIcon, QColor, QFont)
+from PyQt5.QtGui import (QIcon, QColor, QFont, QPainter, QBrush)
 from PyQt5.QtCore import (Qt, QDate)
 
 
@@ -24,10 +24,31 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
 
-        main_layout_top = QHBoxLayout()
+        main_layout_top = QHBoxLayout() # верхняя часть
         main_layout.addLayout(main_layout_top)
 
-        # верхняя часть
+        # кнопка меню
+        self.menu_button = QPushButton("☰")
+        self.menu_button.setFixedSize(36, 36)
+        self.menu_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.menu_button.clicked.connect(self.toggle_menu)
+        self.menu_open = False # меню закрыто
+        main_layout_top.addWidget(self.menu_button, alignment=Qt.AlignLeft)
+        
+        # надпись добро пожаловать
         label = QLabel(f"Добро пожаловать, {fio}")
         label.setAlignment(Qt.AlignLeft)
         label.setStyleSheet("""
@@ -56,23 +77,27 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
             }
         """)
         self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addStretch(1)
         main_layout_top.addWidget(self.button_exit)
 
         # расположение элементов
         main_layout_h = QHBoxLayout() # основная группа
-        group_button_layout = QVBoxLayout() # группа для кнопок
         self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
-        main_layout_h.addLayout(group_button_layout)
-        main_layout_h.addStretch(3)
+        main_layout_h.addStretch(1)
         main_layout_h.addLayout(self.content_layout_v)
         main_layout_h.addStretch(1)
         main_layout.addLayout(main_layout_h)
 
-        group_button_layout.addStretch(1)
+        # область для вывода меню поверх всего
+        self.menu = QWidget(central_widget)
+        self.menu.setStyleSheet("background-color: transparent;")
+        group_button_layout = QVBoxLayout(self.menu) # группа для кнопок
+        group_button_layout.setContentsMargins(0, 0, 0, 0)
+        group_button_layout.setSpacing(6)
 
         # кнопка посещаемости
         self.button_attendance = QPushButton("Посещаемость")
-        self.button_attendance.setFixedSize(250, 40)
+        self.button_attendance.setFixedSize(200, 40)
         self.button_attendance.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -91,11 +116,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.button_attendance.clicked.connect(self.show_attendance)
         group_button_layout.addWidget(self.button_attendance, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка задания
         self.button_homework = QPushButton("Задания")
-        self.button_homework.setFixedSize(250, 40)
+        self.button_homework.setFixedSize(200, 40)
         self.button_homework.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -114,11 +138,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.button_homework.clicked.connect(self.show_homework)
         group_button_layout.addWidget(self.button_homework, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка тесты
         self.button_tests = QPushButton("Тесты")
-        self.button_tests.setFixedSize(250, 40)
+        self.button_tests.setFixedSize(200, 40)
         self.button_tests.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -137,11 +160,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.button_tests.clicked.connect(self.show_tests)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка успеваемость
         self.button_stats = QPushButton("Успеваемость")
-        self.button_stats.setFixedSize(250, 40)
+        self.button_stats.setFixedSize(200, 40)
         self.button_stats.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -160,11 +182,10 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         """)
         self.button_stats.clicked.connect(self.show_grades)
         group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка расписания
         self.button_schedule = QPushButton("Расписание")
-        self.button_schedule.setFixedSize(250, 40)
+        self.button_schedule.setFixedSize(200, 40)
         self.button_schedule.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -184,7 +205,14 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.button_schedule.clicked.connect(self.show_schedule)
         group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
 
-        group_button_layout.addStretch(2)
+        self.menu.adjustSize()
+        self.menu.hide()
+        self.menu.raise_()
+
+        # затемнение области
+        self.overlay = OverlayWidget(central_widget)
+        self.overlay.toggle_callback = self.toggle_menu
+        self.overlay.hide()
 
         self.schedule()
         self.attendance()
@@ -201,6 +229,33 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.login_window = LoginWindow()
         self.login_window.show()
         self.close()
+
+    def toggle_menu(self): # отображение кнопок в меню
+        self.menu_open = not self.menu_open
+        if self.menu_open:
+            
+            self.overlay.setGeometry(self.centralWidget().rect())
+            self.overlay.show()
+            self.overlay.raise_()
+            
+            self.menu_button.raise_()
+            
+            btn_pos = self.menu_button.mapTo(self.centralWidget(), self.menu_button.rect().bottomLeft())
+            self.menu.move(btn_pos.x(), btn_pos.y() + 10)
+            self.menu.show()
+            self.menu.raise_()
+            self.menu_button.setText("✕")
+        else:
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
+
+    def close_menu(self): # закрыть меню
+        if self.menu_open:
+            self.menu_open = False # закрытое меню
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
 
     def schedule(self): # расписание
         self.schedule_widget = QWidget()
@@ -222,6 +277,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для занятий
         self.schedule_list = QListWidget()
+        self.schedule_list.setFixedSize(700, 400)
         self.schedule_list.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -238,7 +294,6 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border-bottom: none;
             }
         """)
-        self.schedule_list.setFixedSize(400, 400)
         schedule_layout.addWidget(self.schedule_list)
         schedule_layout.addSpacing(36)
 
@@ -265,6 +320,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для посещаемости
         self.attendance_table = QListWidget()
+        self.attendance_table.setFixedSize(700, 400)
         self.attendance_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -281,7 +337,6 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border-bottom: none;
             }
         """)
-        self.attendance_table.setFixedSize(400, 400)
         attendance_layout.addWidget(self.attendance_table)
 
         self.attendance_group_combo = QComboBox()
@@ -316,6 +371,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для дз
         self.homework_table = QListWidget()
+        self.homework_table.setFixedSize(700, 400)
         self.homework_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -332,7 +388,6 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 border-bottom: none;
             }
         """)
-        self.homework_table.setFixedSize(400, 400)
         homework_layout.addWidget(self.homework_table)
 
         self.homework_group_combo = QComboBox()
@@ -367,7 +422,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
 
         # окно для оценок
         self.grades_table = QListWidget()
-        self.grades_table.setFixedSize(400, 400)
+        self.grades_table.setFixedSize(700, 400)
         self.grades_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -419,7 +474,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         # окно для тестов
         self.tests_table = QListWidget()
         # self.tests_table.addItem(f"Выберите группу для вывода тестов")
-        self.tests_table.setFixedSize(400, 400)
+        self.tests_table.setFixedSize(700, 400)
         self.tests_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -514,6 +569,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.load_groups_into_combo(self.homework_group_combo) # в скобках указан элемент для подстановки
 
     def show_schedule(self): # отображение расписания
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.schedule_widget)
@@ -521,6 +577,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.load_schedule()
 
     def show_attendance(self): # отображение посещаемости
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.attendance_widget)
@@ -528,6 +585,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.load_groups_for_attendance()
 
     def show_homework(self): # отображение дз
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.homework_widget)
@@ -535,6 +593,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.load_groups_for_homework()
 
     def show_grades(self): # отображение оценок
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.grades_widget)
@@ -542,6 +601,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
         self.load_groups_for_grades()
 
     def show_tests(self): # отображение тестов
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.tests_widget)
@@ -578,7 +638,7 @@ class MainMenuStudent(QMainWindow): # главное меню для учени�
                 inner join users u on u.id_user = s.id_user
                 inner join cabinet cab on cab.id_cabinet = s.id_cabinet
                 inner join class c on c.id_name_class = n_c.id_name_class
-                inner join status_of_payments s_o_p on s_o_p.id_user = u.id_user
+                inner join status_of_payments s_o_p on s_o_p.id_user = c.id_user
                 where c.id_user = ?
                 and s_o_p.rest_of_lessons > -1
                 order by 
@@ -1731,3 +1791,20 @@ class TestExecutionWindow(QDialog): # окно решения теста
                 "Ошибка",
                 f"Не удалось сохранить результаты теста: {str(e)}"
             )
+
+
+class OverlayWidget(QWidget): # виджет для затемнения области при открытии меню
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.setStyleSheet("background: transparent;")
+        self.toggle_callback = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QBrush(QColor(0, 0, 0, 50)))
+        painter.end()
+
+    def mousePressEvent(self, event):
+        if self.toggle_callback:
+            self.toggle_callback()

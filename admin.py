@@ -332,12 +332,16 @@ class MainMenuAdmin(QMainWindow):
                     u.is_active
                 from users u
                 inner join role r on u.id_role = r.id_role
-                where (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
-                or u.patronymic like '%{user_fio}%')
+                where (u.surname like ? or u.name like ?
+                or u.patronymic like ?)
                 order by u.surname, u.name
             """)
             
-            cursor.execute(query)
+            cursor.execute(query, (
+                f"{user_fio}",
+                f"{user_fio}",
+                f"{user_fio}"
+            ))
             users_data = cursor.fetchall()
             
             self.users_table.setRowCount(len(users_data))

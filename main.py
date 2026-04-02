@@ -14,7 +14,7 @@ uname = "other_users"
 pswd = "nopswd"
 driver = "{ODBC Driver 17 for SQL Server}"
 server = "DESKTOP-Q4NUJUS"
-# server = "100.72.0.37,48188"
+# server = "26.166.228.111,48188"
 database = "diary"
 database1 = "diary_pd"
 

@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPu
                              QLabel, QComboBox, QLineEdit, QSpinBox, QMenu, QAction,
                              QListWidget, QDialog, QMessageBox, QListWidgetItem, QTextEdit,
                              QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
-from PyQt5.QtGui import (QIcon, QColor, QFont)
+from PyQt5.QtGui import (QIcon, QColor, QFont, QPainter, QBrush)
 from PyQt5.QtCore import (Qt, QDate)
 
 
@@ -25,10 +25,31 @@ class MainMenuTeacher(QMainWindow):
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
 
-        main_layout_top = QHBoxLayout()
+        main_layout_top = QHBoxLayout() # верхняя часть
         main_layout.addLayout(main_layout_top)
 
-        # верхняя часть
+        # кнопка меню
+        self.menu_button = QPushButton("☰")
+        self.menu_button.setFixedSize(36, 36)
+        self.menu_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.menu_button.clicked.connect(self.toggle_menu)
+        self.menu_open = False # меню закрыто
+        main_layout_top.addWidget(self.menu_button, alignment=Qt.AlignLeft)
+
+        # надпись добро пожаловать
         label = QLabel(f"Добро пожаловать, {fio}")
         label.setAlignment(Qt.AlignLeft)
         label.setStyleSheet("""
@@ -57,20 +78,23 @@ class MainMenuTeacher(QMainWindow):
             }
         """)
         self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addStretch(1)
         main_layout_top.addWidget(self.button_exit)
 
-        # основная группа
-        main_layout_h = QHBoxLayout()
-
-        group_button_layout = QVBoxLayout() # группа для кнопок
+        # расположение элементов
+        main_layout_h = QHBoxLayout() # основная группа
         self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
-        main_layout_h.addLayout(group_button_layout)
-        main_layout_h.addStretch(3)
+        main_layout_h.addStretch(1)
         main_layout_h.addLayout(self.content_layout_v)
         main_layout_h.addStretch(1)
         main_layout.addLayout(main_layout_h)
 
-        group_button_layout.addStretch(1)
+        # область для вывода меню поверх всего
+        self.menu = QWidget(central_widget)
+        self.menu.setStyleSheet("background-color: transparent;")
+        group_button_layout = QVBoxLayout(self.menu) # группа для кнопок
+        group_button_layout.setContentsMargins(0, 0, 0, 0)
+        group_button_layout.setSpacing(6)
 
         # кнопка посещаемости
         self.button_attendance = QPushButton("Посещаемость")
@@ -93,7 +117,6 @@ class MainMenuTeacher(QMainWindow):
         """)
         self.button_attendance.clicked.connect(self.show_attendance)
         group_button_layout.addWidget(self.button_attendance, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка задания
         self.button_homework = QPushButton("Задания")
@@ -116,7 +139,6 @@ class MainMenuTeacher(QMainWindow):
         """)
         self.button_homework.clicked.connect(self.show_homework)
         group_button_layout.addWidget(self.button_homework, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка тесты
         self.button_tests = QPushButton("Тесты")
@@ -139,7 +161,6 @@ class MainMenuTeacher(QMainWindow):
         """)
         self.button_tests.clicked.connect(self.show_tests)
         group_button_layout.addWidget(self.button_tests, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка успеваемость
         self.button_stats = QPushButton("Успеваемость")
@@ -162,7 +183,6 @@ class MainMenuTeacher(QMainWindow):
         """)
         self.button_stats.clicked.connect(self.show_grades)
         group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка расписания
         self.button_schedule = QPushButton("Расписание")
@@ -186,8 +206,14 @@ class MainMenuTeacher(QMainWindow):
         self.button_schedule.clicked.connect(self.show_schedule)
         group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
 
-        group_button_layout.addStretch(2)
-        main_layout.addStretch(1)
+        self.menu.adjustSize()
+        self.menu.hide()
+        self.menu.raise_()
+
+        # затемнение области
+        self.overlay = OverlayWidget(central_widget)
+        self.overlay.toggle_callback = self.toggle_menu
+        self.overlay.hide()
 
         self.schedule()
         self.homework()
@@ -196,6 +222,35 @@ class MainMenuTeacher(QMainWindow):
         self.tests()
         self.show_schedule()
 
+        main_layout.addStretch(1)
+
+    def toggle_menu(self): # отображение кнопок в меню
+        self.menu_open = not self.menu_open
+        if self.menu_open:
+            
+            self.overlay.setGeometry(self.centralWidget().rect())
+            self.overlay.show()
+            self.overlay.raise_()
+            
+            self.menu_button.raise_()
+            
+            btn_pos = self.menu_button.mapTo(self.centralWidget(), self.menu_button.rect().bottomLeft())
+            self.menu.move(btn_pos.x(), btn_pos.y() + 10)
+            self.menu.show()
+            self.menu.raise_()
+            self.menu_button.setText("✕")
+        else:
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
+
+    def close_menu(self): # закрыть меню
+        if self.menu_open:
+            self.menu_open = False # закрытое меню
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
+
     def clear_content_layout(self): # удаление информации из content_layout_v для последующей вставки другого контента
         for i in reversed(range(self.content_layout_v.count())):
             widget = self.content_layout_v.itemAt(i).widget()
@@ -203,6 +258,7 @@ class MainMenuTeacher(QMainWindow):
                 widget.setParent(None)
 
     def show_schedule(self): # отображение расписания
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.schedule_widget)
@@ -229,7 +285,7 @@ class MainMenuTeacher(QMainWindow):
 
         # окно для занятий
         self.schedule_list = QListWidget()
-        self.schedule_list.setFixedSize(600, 450)
+        self.schedule_list.setFixedSize(700, 450)
         self.schedule_list.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -332,6 +388,7 @@ class MainMenuTeacher(QMainWindow):
             self.schedule_list.addItem(error_item)
 
     def show_homework(self): # отображение дз
+        self.close_menu()
         self.clear_content_layout()
         self.load_groups_for_homework()
 
@@ -378,31 +435,11 @@ class MainMenuTeacher(QMainWindow):
         
         control_layout.addStretch()
         
-        # кнопка обновить
-        refresh_button = QPushButton("Обновить")
-        refresh_button.setFixedSize(120, 35)
-        refresh_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
-        refresh_button.clicked.connect(self.load_homework)
-        control_layout.addWidget(refresh_button)
-        
         homework_layout.addLayout(control_layout)
 
         # таблица для дз
         self.homework_table = QListWidget()
-        self.homework_table.setFixedSize(600, 304)
+        self.homework_table.setFixedSize(700, 304)
         self.homework_table.setStyleSheet("""
             QListWidget {
                 background-color: white;
@@ -451,6 +488,7 @@ class MainMenuTeacher(QMainWindow):
             border: 1px solid #ccc;
             padding: 5px;
             font-family: Roboto;
+            font-size: 13px;
         """)
         self.question_text_edit.textChanged.connect(self.validate_homework_text)
         text_layout.addWidget(self.question_text_edit, alignment=Qt.AlignLeft)
@@ -896,6 +934,7 @@ class MainMenuTeacher(QMainWindow):
             self.group_combo.setEnabled(False)
 
     def show_attendance(self): # отображение посещаемости
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.attendance_widget)
@@ -946,7 +985,7 @@ class MainMenuTeacher(QMainWindow):
         
         # для таблицы
         self.attendance_table = QTableWidget()
-        self.attendance_table.setFixedSize(600, 355)
+        self.attendance_table.setFixedSize(700, 355)
         self.attendance_table.setColumnCount(3)
         self.attendance_table.setHorizontalHeaderLabels(["Предмет", "ФИО", "Статус посещаемости"])
         self.attendance_table.horizontalHeader().setStretchLastSection(True)
@@ -1323,6 +1362,7 @@ class MainMenuTeacher(QMainWindow):
                 self.conn.rollback()
 
     def show_grades(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.grades_widget)
@@ -1398,7 +1438,7 @@ class MainMenuTeacher(QMainWindow):
         
         # для таблицы
         self.grades_table = QTableWidget()
-        self.grades_table.setFixedSize(600, 355)
+        self.grades_table.setFixedSize(700, 355)
         self.grades_table.setColumnCount(4)
         self.grades_table.setHorizontalHeaderLabels(["Предмет", "ФИО", "Оценка", "Тип оценки"])
         self.grades_table.horizontalHeader().setStretchLastSection(True)
@@ -1885,6 +1925,7 @@ class MainMenuTeacher(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить средний балл группы: {str(e)}")
 
     def show_tests(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.tests_widget)
@@ -1949,9 +1990,9 @@ class MainMenuTeacher(QMainWindow):
         
         tests_layout.addLayout(top_layout)
         
-        # для таблицы
+        # таблица для тестов
         self.tests_table = QTableWidget()
-        self.tests_table.setFixedSize(600, 355)
+        self.tests_table.setFixedSize(700, 355)
         self.tests_table.setColumnCount(6)
         self.tests_table.setHorizontalHeaderLabels(["Предмет", "Группа", "Тест", 
             "Попытки", "Дата загрузки", "Срок сдачи"])
@@ -3598,3 +3639,20 @@ class QuestionAnswerFromDB(QDialog):
         except Exception as e:
             print(f"Ошибка при загрузке ответов: {str(e)}")
             return []
+        
+
+class OverlayWidget(QWidget): # виджет для затемнения области при открытии меню
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.setStyleSheet("background: transparent;")
+        self.toggle_callback = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QBrush(QColor(0, 0, 0, 50)))
+        painter.end()
+
+    def mousePressEvent(self, event):
+        if self.toggle_callback:
+            self.toggle_callback()

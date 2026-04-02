@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                              QLineEdit, QTabWidget, QFrame, QProgressBar,
                              QDialog, QFormLayout, QMessageBox,
                              QDateEdit, QTableWidget, QTableWidgetItem, QHeaderView)
-from PyQt5.QtGui import (QIcon, QColor, QFont, QIntValidator)
+from PyQt5.QtGui import (QIcon, QColor, QFont, QIntValidator, QPainter, QBrush)
 from PyQt5.QtCore import (Qt, QDate, QTimer)
 
 
@@ -25,10 +25,31 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
 
-        main_layout_top = QHBoxLayout()
+        main_layout_top = QHBoxLayout() # верхняя часть
         main_layout.addLayout(main_layout_top)
 
-        # верхняя часть
+        # кнопка меню
+        self.menu_button = QPushButton("☰")
+        self.menu_button.setFixedSize(36, 36)
+        self.menu_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+        self.menu_button.clicked.connect(self.toggle_menu)
+        self.menu_open = False # меню закрыто
+        main_layout_top.addWidget(self.menu_button, alignment=Qt.AlignLeft)
+        
+        # надпись добро пожаловать
         label = QLabel(f"Добро пожаловать, {fio}")
         label.setAlignment(Qt.AlignLeft)
         label.setStyleSheet("""
@@ -57,19 +78,23 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             }
         """)
         self.button_exit.clicked.connect(self.logout)
+        main_layout_top.addStretch(1)
         main_layout_top.addWidget(self.button_exit)
 
-        # расположение областей
-        main_layout_h = QHBoxLayout() # основная область
-        group_button_layout = QVBoxLayout() # область для кнопок
-        self.content_layout_v = QVBoxLayout() # область для пользователей/составления расписания/успеваемости/группы и предметы
-        main_layout_h.addLayout(group_button_layout)
-        main_layout_h.addStretch(3)
+        # расположение элементов
+        main_layout_h = QHBoxLayout() # основная группа
+        self.content_layout_v = QVBoxLayout() # группа для расписания/посещаемости/заданий/тестов/успеваемости
+        main_layout_h.addStretch(1)
         main_layout_h.addLayout(self.content_layout_v)
         main_layout_h.addStretch(1)
         main_layout.addLayout(main_layout_h)
 
-        group_button_layout.addStretch(1)
+        # область для вывода меню поверх всего
+        self.menu = QWidget(central_widget)
+        self.menu.setStyleSheet("background-color: transparent;")
+        group_button_layout = QVBoxLayout(self.menu) # группа для кнопок
+        group_button_layout.setContentsMargins(0, 0, 0, 0)
+        group_button_layout.setSpacing(6)
 
         # кнопка пользователи
         self.button_users = QPushButton("Пользователи")
@@ -92,7 +117,6 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         self.button_users.clicked.connect(self.show_users)
         group_button_layout.addWidget(self.button_users, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка расписание
         self.button_schedule = QPushButton("Расписание")
@@ -115,7 +139,6 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         self.button_schedule.clicked.connect(self.show_schedule)
         group_button_layout.addWidget(self.button_schedule, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка успеваемость
         self.button_stats = QPushButton("Успеваемость")
@@ -138,7 +161,6 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         self.button_stats.clicked.connect(self.show_stats)
         group_button_layout.addWidget(self.button_stats, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка группы и предметы
         self.button_groups_subjects = QPushButton("Группы и предметы")
@@ -161,7 +183,6 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         self.button_groups_subjects.clicked.connect(self.show_groups_subjects)
         group_button_layout.addWidget(self.button_groups_subjects, alignment=Qt.AlignLeft)
-        group_button_layout.addSpacing(5)
 
         # кнопка оплата
         self.button_payment = QPushButton("Оплата")
@@ -185,7 +206,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.button_payment.clicked.connect(self.show_payments)
         group_button_layout.addWidget(self.button_payment, alignment=Qt.AlignLeft)
 
-        group_button_layout.addStretch(2)
+        self.menu.adjustSize()
+        self.menu.hide()
+        self.menu.raise_()
+
+        # затемнение области
+        self.overlay = OverlayWidget(central_widget)
+        self.overlay.toggle_callback = self.toggle_menu
+        self.overlay.hide()
 
         self.users()
         self.stats()
@@ -194,12 +222,41 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.payments()
 
         self.show_users()
+        
+        main_layout.addStretch(1)
 
     def logout(self): # выход из учетки
         from main import LoginWindow
         self.login_window = LoginWindow()
         self.login_window.show()
         self.close()
+
+    def toggle_menu(self): # отображение кнопок в меню
+        self.menu_open = not self.menu_open
+        if self.menu_open:
+            
+            self.overlay.setGeometry(self.centralWidget().rect())
+            self.overlay.show()
+            self.overlay.raise_()
+            
+            self.menu_button.raise_()
+            
+            btn_pos = self.menu_button.mapTo(self.centralWidget(), self.menu_button.rect().bottomLeft())
+            self.menu.move(btn_pos.x(), btn_pos.y() + 10)
+            self.menu.show()
+            self.menu.raise_()
+            self.menu_button.setText("✕")
+        else:
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
+
+    def close_menu(self): # закрыть меню
+        if self.menu_open:
+            self.menu_open = False # закрытое меню
+            self.menu.hide()
+            self.overlay.hide()
+            self.menu_button.setText("☰")
 
     def clear_content_layout(self): # удаление элементов из content_layout_v для вставки другого контента
         for i in reversed(range(self.content_layout_v.count())):
@@ -208,6 +265,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 widget.setParent(None)
 
     def show_users(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.users_widget)
@@ -247,10 +305,10 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         # таблица для вывода пользователей
         self.users_table = QTableWidget()
-        self.users_table.setFixedSize(600, 370)
-        self.users_table.setColumnCount(4)
+        self.users_table.setFixedSize(700, 370)
+        self.users_table.setColumnCount(5)
         self.users_table.setHorizontalHeaderLabels([
-            "Фамилия", "Имя", "Отчество", "Роль"
+            "Фамилия", "Имя", "Отчество", "Роль", "Группа"
         ])
         self.users_table.horizontalHeader().setStretchLastSection(True)
         self.users_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -292,12 +350,14 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         header = self.users_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # фамилия
-        header.resizeSection(0, 150)
+        header.resizeSection(0, 140)
         header.setSectionResizeMode(1, QHeaderView.Fixed)  # имя
-        header.resizeSection(1, 150)
+        header.resizeSection(1, 140)
         header.setSectionResizeMode(2, QHeaderView.Fixed)  # отчество
-        header.resizeSection(2, 150)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # роль
+        header.resizeSection(2, 140)
+        header.setSectionResizeMode(3, QHeaderView.Fixed)  # роль
+        header.resizeSection(3, 120)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # группа
         users_layout.addWidget(self.users_table)
         users_layout.addStretch(1)
 
@@ -331,9 +391,29 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     u.surname,
                     u.name,
                     u.patronymic,
-                    r.title as role_name
+                    r.title as role_name,
+                    case
+                        when u.id_role = 1 then -- ученики
+                            isnull(
+                                (select string_agg(convert(varchar, n_c2.num) + n_c2.letter, ', ')
+                                within group (order by n_c2.num, n_c2.letter)
+                                from class c2
+                                inner join name_class n_c2 on n_c2.id_name_class = c2.id_name_class
+                                where c2.id_user = u.id_user),
+                                'Не назначена'
+                            )
+                        when u.id_role = 2 then -- преподаватели
+                            isnull(
+                                (select string_agg(convert(varchar, n_c2.num) + n_c2.letter, ', ')
+                                within group (order by n_c2.num, n_c2.letter)
+                                from class c2
+                                inner join name_class n_c2 on n_c2.id_name_class = c2.id_name_class
+                                where c2.id_user = u.id_user),
+                                ''
+                            )
+                    end as [groups]
                 from users u
-                inner join role r on u.id_role = r.id_role
+                inner join role r on r.id_role = u.id_role
                 where u.is_active = 1 and u.id_role < 3
                 order by u.surname, u.name
             """)
@@ -342,12 +422,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             
             self.users_table.setRowCount(len(users_data))
             
-            for row, user in enumerate(users_data):
-                user_id = user[0]
-                surname = user[1]
-                name = user[2]
-                patronymic = user[3]
-                role_name = user[4]
+            for row, record in enumerate(users_data):
+                user_id = record[0]
+                surname = record[1]
+                name = record[2]
+                patronymic = record[3]
+                role_name = record[4]
+                group = record[5]
                 
                 # фамилия
                 surname_item = QTableWidgetItem(surname)
@@ -376,6 +457,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 role_name_item.setFlags(role_name_item.flags() & ~Qt.ItemIsEditable)
                 role_name_item.setTextAlignment(Qt.AlignCenter)
                 self.users_table.setItem(row, 3, role_name_item)
+
+                # группы
+                group_name_item = QTableWidgetItem(group)
+                group_name_item.setData(Qt.UserRole, {'user_id': user_id})
+                group_name_item.setFlags(group_name_item.flags() & ~Qt.ItemIsEditable)
+                group_name_item.setTextAlignment(Qt.AlignCenter)
+                self.users_table.setItem(row, 4, group_name_item)
             
             cursor.close()
             
@@ -392,25 +480,50 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     u.surname,
                     u.name,
                     u.patronymic,
-                    r.title as role_name
+                    r.title as role_name,
+                    case
+                        when u.id_role = 1 then -- ученики
+                            isnull(
+                                (select string_agg(convert(varchar, n_c2.num) + n_c2.letter, ', ')
+                                within group (order by n_c2.num, n_c2.letter)
+                                from class c2
+                                inner join name_class n_c2 on n_c2.id_name_class = c2.id_name_class
+                                where c2.id_user = u.id_user),
+                                'Не назначена'
+                            )
+                        when u.id_role = 2 then -- преподаватели
+                            isnull(
+                                (select string_agg(convert(varchar, n_c2.num) + n_c2.letter, ', ')
+                                within group (order by n_c2.num, n_c2.letter)
+                                from class c2
+                                inner join name_class n_c2 on n_c2.id_name_class = c2.id_name_class
+                                where c2.id_user = u.id_user),
+                                ''
+                            )
+                    end as [groups]
                 from users u
-                inner join role r on u.id_role = r.id_role
+                inner join role r on r.id_role = u.id_role
                 where u.is_active = 1 and u.id_role < 3
-                and (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
-                or u.patronymic like '%{user_fio}%')
+                and (u.surname like ? or u.name like ?
+                or u.patronymic like ?)
                 order by u.surname, u.name
             """)
-            cursor.execute(query)
+            cursor.execute(query, (
+                f"%{user_fio}%",
+                f"%{user_fio}%",
+                f"%{user_fio}%"
+            ))
             users_data = cursor.fetchall()
             
             self.users_table.setRowCount(len(users_data))
             
-            for row, user in enumerate(users_data):
-                user_id = user[0]
-                surname = user[1]
-                name = user[2]
-                patronymic = user[3]
-                role_name = user[4]
+            for row, record in enumerate(users_data):
+                user_id = record[0]
+                surname = record[1]
+                name = record[2]
+                patronymic = record[3]
+                role_name = record[4]
+                group = record[5]
                 
                 # фамилия
                 surname_item = QTableWidgetItem(surname)
@@ -439,6 +552,13 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 role_name_item.setFlags(role_name_item.flags() & ~Qt.ItemIsEditable)
                 role_name_item.setTextAlignment(Qt.AlignCenter)
                 self.users_table.setItem(row, 3, role_name_item)
+
+                # группы
+                group_name_item = QTableWidgetItem(group)
+                group_name_item.setData(Qt.UserRole, {'user_id': user_id})
+                group_name_item.setFlags(group_name_item.flags() & ~Qt.ItemIsEditable)
+                group_name_item.setTextAlignment(Qt.AlignCenter)
+                self.users_table.setItem(row, 4, group_name_item)
             
             cursor.close()
             
@@ -454,6 +574,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 self.load_users()
 
     def show_stats(self): # успеваемость
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.stats_widget)
@@ -501,7 +622,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         
         # для таблицы
         self.stats_table = QTableWidget()
-        self.stats_table.setFixedSize(600, 360)
+        self.stats_table.setFixedSize(700, 360)
         self.stats_table.setColumnCount(5)
         self.stats_table.setHorizontalHeaderLabels(["Предмет", "ФИО", "Статус посещаемости", "Оценка", "Тип оценки"])
         self.stats_table.horizontalHeader().setStretchLastSection(True)
@@ -788,13 +909,17 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
                 where n_c.id_name_class = ? and l.date = ?
-                and (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
-                or u.patronymic like '%{user_fio}%')
+                and (u.surname like ? or u.name like ?
+                or u.patronymic like ?)
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
                     t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
-            cursor.execute(query, (selected_group_id, stats_date_str))
+            cursor.execute(query, (selected_group_id, stats_date_str,
+                f"{user_fio}",
+                f"{user_fio}",
+                f"{user_fio}"
+            ))
             stats_data = cursor.fetchall()
             
             # вывод в таблице
@@ -1010,13 +1135,17 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
                 where n_c.id_name_class = ?
-                and (u.surname like '%{user_fio}%' or u.name like '%{user_fio}%'
-                or u.patronymic like '%{user_fio}%')
+                and (u.surname like ? or u.name like ?
+                or u.patronymic like ?)
                 group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
                     l.date, t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
-            cursor.execute(query, (selected_group_id))
+            cursor.execute(query, (selected_group_id,
+                f"{user_fio}",
+                f"{user_fio}",
+                f"{user_fio}"
+            ))
             stats_data = cursor.fetchall()
             
             # вывод в таблице
@@ -1324,6 +1453,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             combo_box.setEnabled(False)
 
     def show_groups_subjects(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.groups_subjects_widget)
@@ -1363,7 +1493,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.tab_groups.setLayout(groups_layout)
 
         self.groups_table = QTableWidget()
-        self.groups_table.setFixedSize(350, 400)
+        self.groups_table.setFixedSize(420, 400)
         self.groups_table.setColumnCount(2)
         self.groups_table.setHorizontalHeaderLabels(["ФИО ученика", "Группа"])
         self.groups_table.horizontalHeader().setStretchLastSection(True)
@@ -1408,7 +1538,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         """)
         header = self.groups_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # фио
-        header.resizeSection(0, 180)
+        header.resizeSection(0, 240)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # группа
         groups_layout.addWidget(self.groups_table, alignment=Qt.AlignCenter)
         groups_layout.addStretch(1)
@@ -1517,7 +1647,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         self.tab_subjects.setLayout(subjects_layout)
 
         self.subjects_table = QTableWidget()
-        self.subjects_table.setFixedSize(350, 400)
+        self.subjects_table.setFixedSize(420, 400)
         self.subjects_table.setColumnCount(3)
         self.subjects_table.setHorizontalHeaderLabels(["Группа", "Предмет", "ФИО преподавателя"])
         self.subjects_table.horizontalHeader().setStretchLastSection(True)
@@ -1564,7 +1694,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # группа
         header.resizeSection(0, 70)
         header.setSectionResizeMode(1, QHeaderView.Fixed)  # предмет
-        header.resizeSection(1, 90)
+        header.resizeSection(1, 110)
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # преподаватель
         subjects_layout.addWidget(self.subjects_table, alignment=Qt.AlignCenter)
         subjects_layout.addStretch(1)
@@ -2356,6 +2486,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             self.subject_combo.setEnabled(False)
 
     def show_schedule(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.schedule_widget)
@@ -2454,7 +2585,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         
         # для таблицы
         self.schedule_table = QTableWidget()
-        self.schedule_table.setFixedSize(600, 337)
+        self.schedule_table.setFixedSize(700, 337)
         self.schedule_table.setColumnCount(5)
         self.schedule_table.setHorizontalHeaderLabels(["Номер занятия", "Группа", "Предмет", "Преподаватель", "Кабинет"])
         self.schedule_table.horizontalHeader().setStretchLastSection(True)
@@ -3152,6 +3283,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             self.schedule_subject.setText(f"Ошибка загрузки: {str(e)}")
 
     def show_payments(self):
+        self.close_menu()
         self.clear_content_layout()
 
         self.content_layout_v.addWidget(self.payments_widget)
@@ -3213,7 +3345,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         # для таблицы оплаты
         self.payments_table = QTableWidget()
-        self.payments_table.setFixedSize(600, 330)
+        self.payments_table.setFixedSize(700, 330)
         self.payments_table.setColumnCount(4)
         self.payments_table.setHorizontalHeaderLabels(["ФИО", "Группа", "Статус оплаты", "Занятия"])
         self.payments_table.horizontalHeader().setStretchLastSection(True)
@@ -3369,7 +3501,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         # для таблицы истории оплаты
         self.history_table = QTableWidget()
-        self.history_table.setFixedSize(600, 330)
+        self.history_table.setFixedSize(700, 330)
         self.history_table.setColumnCount(6)
         self.history_table.setHorizontalHeaderLabels(["ФИО", "Группа", "Тип оплаты", "Занятия", "Сумма оплаты", "Дата платежа"])
         self.history_table.horizontalHeader().setStretchLastSection(True)
@@ -3429,7 +3561,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
 
         # для таблицы прайс-листа
         self.price_table = QTableWidget()
-        self.price_table.setFixedSize(600, 300)
+        self.price_table.setFixedSize(700, 300)
         self.price_table.setColumnCount(2)
         self.price_table.setHorizontalHeaderLabels(["Группа", "Стоимость занятия"])
         self.price_table.horizontalHeader().setStretchLastSection(True)
@@ -4336,3 +4468,20 @@ class EditUserDialog(QDialog): # окно редактирования поль�
             return False
         
         return True
+
+
+class OverlayWidget(QWidget): # виджет для затемнения области при открытии меню
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.setStyleSheet("background: transparent;")
+        self.toggle_callback = None
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QBrush(QColor(0, 0, 0, 50)))
+        painter.end()
+
+    def mousePressEvent(self, event):
+        if self.toggle_callback:
+            self.toggle_callback()
