@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QComboBox, QLineEdit, QSpinBox, QMenu, QAction,
                              QListWidget, QDialog, QMessageBox, QListWidgetItem, QTextEdit,
-                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView)
+                             QDateEdit, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView,
+                             QScrollArea, QFrame)
 from PyQt5.QtGui import (QIcon, QColor, QFont, QPainter, QBrush)
 from PyQt5.QtCore import (Qt, QDate)
 
@@ -281,28 +282,31 @@ class MainMenuTeacher(QMainWindow):
             margin-bottom: 10px;
         """)
         schedule_layout.addWidget(schedule_label)
-        # content_layout_v.addStretch(1)
 
         # окно для занятий
-        self.schedule_list = QListWidget()
-        self.schedule_list.setFixedSize(700, 450)
+        self.schedule_list = QScrollArea()
+        self.schedule_list.setFixedSize(700, 400)
+        self.schedule_list.setWidgetResizable(True)
+        self.schedule_list.setFrameShape(QScrollArea.NoFrame)
         self.schedule_list.setStyleSheet("""
-            QListWidget {
-                background-color: white;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                padding: 10px;
-                font-family: Roboto;
+            QScrollArea { background-color: #f4f6f9; border: none; }
+            QScrollBar:vertical {
+                background: #f0f0f0; width: 6px; border-radius: 3px;
             }
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #eee;
-            }
-            QListWidget::item:last {
-                border-bottom: none;
+            QScrollBar::handle:vertical {
+                background: #b0bec5; border-radius: 3px; min-height: 20px;
             }
         """)
+
+        self.schedule_cards_widget = QWidget()
+        self.schedule_cards_widget.setStyleSheet("background-color: #f4f6f9;")
+        self.schedule_cards_layout = QVBoxLayout(self.schedule_cards_widget)
+        self.schedule_cards_layout.setContentsMargins(8, 8, 8, 8)
+        self.schedule_cards_layout.setSpacing(10)
+        self.schedule_list.setWidget(self.schedule_cards_widget)
+
         schedule_layout.addWidget(self.schedule_list)
+        schedule_layout.addSpacing(36)
 
         self.load_schedule()
 
@@ -342,42 +346,128 @@ class MainMenuTeacher(QMainWindow):
             cursor.execute(query, (self.id_user))
             schedule_data = cursor.fetchall()
 
-            self.schedule_list.clear()
+            while self.schedule_cards_layout.count():
+                item = self.schedule_cards_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            day_accent = {
+                "Понедельник": "#4a90d9",
+                "Вторник":     "#27ae60",
+                "Среда":       "#e67e22",
+                "Четверг":     "#8e44ad",
+                "Пятница":     "#e74c3c",
+                "Суббота":     "#16a085",
+                "Воскресенье": "#7f8c8d",
+            }
 
             if schedule_data:
-                current_day = None
-                
+                days = {}
                 for lesson in schedule_data:
-                    day_of_week = lesson[0]
-                    subject_name = lesson[1]
-                    class_num = lesson[2]
-                    class_letter = lesson[3]
-                    cabinet = lesson[4]
-                    lesson_time = lesson[5]
+                    day = lesson[0]
+                    if day not in days:
+                        days[day] = []
+                    days[day].append(lesson)
 
-                    class_group = f"{class_num}{class_letter}"
-                    
-                    lesson_text = (f"{subject_name}, группа: {class_group}, "
-                        f"{cabinet} кабинет\n  Начало в: {lesson_time}")
-                    
-                    if day_of_week != current_day:
-                        current_day = day_of_week
-                        day_header = QListWidgetItem(f"{day_of_week}:")
-                        day_header.setFlags(Qt.NoItemFlags)
-                        day_header.setFont(QFont("Roboto", 10, QFont.Bold))
-                        day_header.setForeground(QColor("#2c3e50"))
-                        self.schedule_list.addItem(day_header)
-                    
-                    lesson_item = QListWidgetItem(f"  {lesson_text}")
-                    lesson_item.setFlags(Qt.NoItemFlags)
-                    self.schedule_list.addItem(lesson_item)
+                for day, lessons in days.items():
+                    accent = day_accent.get(day, "#3d5a80")
+
+                    # карточка дня
+                    card = QFrame()
+                    card.setStyleSheet(f"""
+                        QFrame {{
+                            background-color: white;
+                            border-radius: 10px;
+                            border-left: 4px solid {accent};
+                        }}
+                    """)
+                    card_layout = QVBoxLayout(card)
+                    card_layout.setContentsMargins(14, 10, 14, 10)
+                    card_layout.setSpacing(6)
+
+                    day_label = QLabel(day)
+                    day_label.setStyleSheet(f"""
+                        font-family: Roboto;
+                        font-size: 13px;
+                        font-weight: bold;
+                        color: {accent};
+                        background: transparent;
+                        border: none;
+                    """)
+                    card_layout.addWidget(day_label)
+
+                    line = QFrame()
+                    line.setFrameShape(QFrame.HLine)
+                    line.setStyleSheet(f"color: {accent}; background-color: {accent}; border: none; max-height: 1px;")
+                    card_layout.addWidget(line)
+
+                    for lesson in lessons:
+                        subject_name = lesson[1]
+                        class_num = lesson[2]
+                        class_letter = lesson[3]
+                        cabinet = lesson[4]
+                        lesson_time = lesson[5]
+
+                        group_name = f"{class_num}{class_letter}"
+
+                        row_widget = QWidget()
+                        row_widget.setStyleSheet("background: transparent; border: none;")
+                        row_layout = QHBoxLayout(row_widget)
+                        row_layout.setContentsMargins(0, 2, 0, 2)
+                        row_layout.setSpacing(12)
+
+                        time_lbl = QLabel(lesson_time)
+                        time_lbl.setFixedWidth(48)
+                        time_lbl.setStyleSheet(f"""
+                            font-family: Roboto; 
+                            font-size: 12px; 
+                            font-weight: bold;
+                            color: white; 
+                            background-color: {accent};
+                            border-radius: 4px; 
+                            padding: 2px 4px;
+                            border: none;
+                        """)
+                        time_lbl.setAlignment(Qt.AlignCenter)
+
+                        subj_lbl = QLabel(f"""
+                            {subject_name}  <span style='color:#888; 
+                            font-size:11px;'>({group_name})</span>
+                        """)
+                        subj_lbl.setStyleSheet("""
+                            font-family: Roboto; 
+                            font-size: 13px; 
+                            color: #2c3e50; 
+                            background: transparent; 
+                            border: none;
+                        """)
+
+                        cab_lbl = QLabel(f"каб. {cabinet}")
+                        cab_lbl.setFixedWidth(60)
+                        cab_lbl.setStyleSheet("""
+                            font-family: Roboto; 
+                            font-size: 12px; 
+                            color: #95a5a6; 
+                            background: transparent; 
+                            border: none;
+                        """)
+                        cab_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+                        row_layout.addWidget(time_lbl)
+                        row_layout.addWidget(subj_lbl, stretch=2)
+                        row_layout.addWidget(cab_lbl)
+                        card_layout.addWidget(row_widget)
+
+                    self.schedule_cards_layout.addWidget(card)
+
+                self.schedule_cards_layout.addStretch()
 
             else:
-                no_schedule_item = QListWidgetItem("Расписание на текущую неделю отсутствует")
-                no_schedule_item.setTextAlignment(Qt.AlignCenter)
-                no_schedule_item.setFlags(Qt.NoItemFlags)
-                no_schedule_item.setForeground(QColor("#7f8c8d"))
-                self.schedule_list.addItem(no_schedule_item)
+                empty = QLabel("Расписание на текущую неделю отсутствует")
+                empty.setAlignment(Qt.AlignCenter)
+                empty.setStyleSheet("font-family: Roboto; font-size: 14px; color: #7f8c8d;")
+                self.schedule_cards_layout.addWidget(empty)
+                self.schedule_cards_layout.addStretch()
                 
             cursor.close()
 
