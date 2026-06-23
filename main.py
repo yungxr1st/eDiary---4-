@@ -49,7 +49,7 @@ class LoginWindow(QMainWindow):
         central_widget.setLayout(main_layout)
 
         # главная надпись
-        title = QLabel("электронный дневник")
+        title = QLabel("SmartClass")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("""
             font-size: 24px;

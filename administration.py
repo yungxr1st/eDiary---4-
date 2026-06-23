@@ -361,25 +361,25 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         users_layout.addWidget(self.users_table)
         users_layout.addStretch(1)
 
-        self.edit_user_button = QPushButton("Редактировать пользователя")
-        self.edit_user_button.setFixedSize(250, 40)
-        self.edit_user_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border-radius: 5px;
-                font-size: 14px;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
-        self.edit_user_button.clicked.connect(self.open_edit_user_dialog)
-        users_layout.addWidget(self.edit_user_button, alignment=Qt.AlignRight)
+        # self.edit_user_button = QPushButton("Редактировать пользователя")
+        # self.edit_user_button.setFixedSize(250, 40)
+        # self.edit_user_button.setStyleSheet("""
+        #     QPushButton {
+        #         background-color: #3498db;
+        #         color: white;
+        #         border-radius: 5px;
+        #         font-size: 14px;
+        #         text-align: center;
+        #     }
+        #     QPushButton:hover {
+        #         background-color: #2980b9;
+        #     }
+        #     QPushButton:pressed {
+        #         background-color: #21618c;
+        #     }
+        # """)
+        # self.edit_user_button.clicked.connect(self.open_edit_user_dialog)
+        # users_layout.addWidget(self.edit_user_button, alignment=Qt.AlignRight)
 
     def load_users(self): # загрузка пользователей 
         try:
@@ -409,7 +409,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                                 from class c2
                                 inner join name_class n_c2 on n_c2.id_name_class = c2.id_name_class
                                 where c2.id_user = u.id_user),
-                                ''
+                                '-'
                             )
                     end as [groups]
                 from users u
