@@ -793,17 +793,15 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     isnull(g.grade, ' ') as grade,
                     isnull(t_g.title, ' ') as type_grade
                 from lesson l
-                inner join grade g on g.id_lesson = l.id_lesson
-                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
+                inner join attendance a on a.id_lesson = l.id_lesson and a.id_user = u.id_user
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join grade g on g.id_lesson = l.id_lesson and g.id_user = u.id_user
+                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
                 where n_c.id_name_class = ? and l.date = ?
-                group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
-                    t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
             cursor.execute(query, (selected_group_id, stats_date_str))
@@ -900,25 +898,23 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     isnull(g.grade, ' ') as grade,
                     isnull(t_g.title, ' ') as type_grade
                 from lesson l
-                inner join grade g on g.id_lesson = l.id_lesson
-                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
+                inner join attendance a on a.id_lesson = l.id_lesson and a.id_user = u.id_user
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join grade g on g.id_lesson = l.id_lesson and g.id_user = u.id_user
+                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
                 where n_c.id_name_class = ? and l.date = ?
                 and (u.surname like ? or u.name like ?
                 or u.patronymic like ?)
-                group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
-                    t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
             cursor.execute(query, (selected_group_id, stats_date_str,
-                f"{user_fio}",
-                f"{user_fio}",
-                f"{user_fio}"
+                f"%{user_fio}%",
+                f"%{user_fio}%",
+                f"%{user_fio}%"
             ))
             stats_data = cursor.fetchall()
             
@@ -1011,17 +1007,15 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     isnull(g.grade, ' ') as grade,
                     isnull(t_g.title, ' ') as type_grade
                 from lesson l
-                inner join grade g on g.id_lesson = l.id_lesson
-                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
+                inner join attendance a on a.id_lesson = l.id_lesson and a.id_user = u.id_user
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join grade g on g.id_lesson = l.id_lesson and g.id_user = u.id_user
+                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
                 where n_c.id_name_class = ?
-                group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
-                    l.date, t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
             cursor.execute(query, (selected_group_id))
@@ -1126,25 +1120,23 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
                     isnull(g.grade, ' ') as grade,
                     isnull(t_g.title, ' ') as type_grade
                 from lesson l
-                inner join grade g on g.id_lesson = l.id_lesson
-                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
+                inner join attendance a on a.id_lesson = l.id_lesson and a.id_user = u.id_user
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                inner join grade g on g.id_lesson = l.id_lesson and g.id_user = u.id_user
+                inner join type_grade t_g on t_g.id_type_gr = g.id_type_gr
                 where n_c.id_name_class = ?
                 and (u.surname like ? or u.name like ?
                 or u.patronymic like ?)
-                group by u.id_user, s.subject_name, u.surname, u.[name], u.patronymic, 
-                    l.date, t_a.title, g.grade, t_g.title
                 order by s.subject_name, u.surname, u.[name], u.patronymic
             """
             cursor.execute(query, (selected_group_id,
-                f"{user_fio}",
-                f"{user_fio}",
-                f"{user_fio}"
+                f"%{user_fio}%",
+                f"%{user_fio}%",
+                f"%{user_fio}%"
             ))
             stats_data = cursor.fetchall()
             
@@ -1351,7 +1343,7 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
             cursor = self.conn.cursor()
             
             grades_query = """
-                select
+                select distinct
                     convert(varchar, n_c.num) + n_c.letter as [group],
                     s.subject_name,
                     isnull(s_s.avg_grade, 'н/а') as avg_grade
@@ -2958,6 +2950,10 @@ class MainMenuAdministration(QMainWindow): # главное меню для ад
         
         if self.cabinet_combo.currentIndex() == 0:
             QMessageBox.warning(self, "Ошибка", "Выберите кабинет")
+            return
+        
+        if self.num_label.text() == "Номер занятия:  ":
+            QMessageBox.warning(self, "Ошибка", "Выберите номер занятия")
             return
         
         selected_row = None

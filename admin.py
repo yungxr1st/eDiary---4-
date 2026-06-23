@@ -318,6 +318,10 @@ class MainMenuAdmin(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить пользователей: {str(e)}")
 
     def filter_users(self):
+        if not self.users_text.text() or not self.users_text.text().strip():
+            self.load_users()
+            return
+
         try:
             cursor = self.conn.cursor()
             user_fio = self.users_text.text()
@@ -338,9 +342,9 @@ class MainMenuAdmin(QMainWindow):
             """)
             
             cursor.execute(query, (
-                f"{user_fio}",
-                f"{user_fio}",
-                f"{user_fio}"
+                f"%{user_fio}%",
+                f"%{user_fio}%",
+                f"%{user_fio}%"
             ))
             users_data = cursor.fetchall()
             

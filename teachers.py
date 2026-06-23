@@ -1228,19 +1228,16 @@ class MainMenuTeacher(QMainWindow):
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
                     isnull(t_a.title, '') as attendance_status
                 from lesson l
-                inner join attendance a on a.id_lesson = l.id_lesson
-                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
                 inner join subject s on s.id_subject = l.id_subject
-                inner join schedule sch on sch.id_name_class = n_c.id_name_class
-                where sch.id_user = ? and sch.id_name_class = ? and l.date = ?
-                group by a.id_attendance, s.id_subject, s.subject_name, u.id_user, 
-	                u.surname, u.name, u.patronymic, t_a.title
+                inner join attendance a on a.id_lesson = l.id_lesson and a.id_user = u.id_user
+                inner join type_attendance t_a on t_a.id_type_att = a.id_type_att
+                where l.id_name_class = ? and l.date = ?
                 order by s.subject_name, u.surname, u.name, u.patronymic
             """
-            cursor.execute(query, (self.id_user, selected_group_id, attendance_date_str))
+            cursor.execute(query, (selected_group_id, attendance_date_str))
             attendance_data = cursor.fetchall()
             
             # вывод в таблице
@@ -1714,13 +1711,10 @@ class MainMenuTeacher(QMainWindow):
                 inner join lesson l on l.id_lesson = g.id_lesson
                 inner join subject s on s.id_subject = l.id_subject
                 inner join name_class n_c on n_c.id_name_class = l.id_name_class
-                inner join schedule sch on sch.id_name_class = n_c.id_name_class
-                where sch.id_user = ? and sch.id_name_class = ? and l.date = ?
-                group by g.id_grade, s.id_subject, s.subject_name, g.id_user, 
-                    u.surname, u.name, u.patronymic, g.grade, g.id_type_gr, t_g.title
+                where l.id_name_class = ? and l.date = ?
                 order by s.subject_name, u.surname, u.name, u.patronymic
             """
-            cursor.execute(query, (self.id_user, selected_group_id, grades_date_str))
+            cursor.execute(query, (selected_group_id, grades_date_str))
             grades_data = cursor.fetchall()
             
             # вывод в таблице
@@ -1965,12 +1959,12 @@ class MainMenuTeacher(QMainWindow):
                 select
                     u.surname + ' ' + u.name + ' ' + u.patronymic as fio,
                     isnull(s_s.avg_grade, 'н/а') as avg_grade
-                from subj_teachers s_t
-                inner join subject s on s.id_subject = s_t.id_subject
-                inner join name_class n_c on n_c.id_name_class = s_t.id_name_class
+                from name_class n_c
                 inner join class c on c.id_name_class = n_c.id_name_class
                 inner join users u on u.id_user = c.id_user
-                inner join subj_students s_s on s_s.id_subject = s.id_subject
+                inner join subj_teachers s_t on s_t.id_name_class = n_c.id_name_class
+                inner join subject s on s.id_subject = s_t.id_subject
+                left join subj_students s_s on s_s.id_user = u.id_user and s_s.id_subject = s.id_subject
                 where n_c.id_name_class = ?
                 order by u.surname + ' ' + u.name + ' ' + u.patronymic
             """
